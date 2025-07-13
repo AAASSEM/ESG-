@@ -1,0 +1,317 @@
+<html><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>window.FontAwesomeConfig = { autoReplaceSvg: 'nest'};</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    
+    <script>tailwind.config = {
+  "theme": {
+    "extend": {
+      "fontFamily": {
+        "inter": [
+          "Inter",
+          "sans-serif"
+        ],
+        "sans": [
+          "Inter",
+          "sans-serif"
+        ]
+      },
+      "colors": {
+        "brand-green": "#2EC57D",
+        "brand-blue": "#3DAEFF",
+        "brand-teal": "#20C5C5",
+        "surface-glass": "rgba(30, 32, 44, 0.24)",
+        "text-high": "#F8F9FA",
+        "text-muted": "rgba(248, 249, 250, 0.72)"
+      },
+      "backdropBlur": {
+        "glass": "12px"
+      }
+    }
+  }
+};</script>
+    <style>::-webkit-scrollbar { display: none;}</style>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;500;600;700;800;900&amp;display=swap"><style>
+      body {
+        font-family: 'Inter', sans-serif !important;
+      }
+      
+      /* Preserve Font Awesome icons */
+      .fa, .fas, .far, .fal, .fab {
+        font-family: "Font Awesome 6 Free", "Font Awesome 6 Brands" !important;
+      }
+    </style><style>
+  .highlighted-section {
+    outline: 2px solid #3F20FB;
+    background-color: rgba(63, 32, 251, 0.1);
+  }
+
+  .edit-button {
+    position: absolute;
+    z-index: 1000;
+  }
+
+  ::-webkit-scrollbar {
+    display: none;
+  }
+
+  html, body {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  </style></head>
+<body class="font-inter bg-gradient-to-br from-[#131A2C] via-[#1C1330] to-[#131A2C] min-h-screen">
+    <header id="header" class="relative z-20 px-6 lg:px-20 py-6">
+        <nav class="flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 bg-brand-green rounded-xl flex items-center justify-center">
+                    <i class="fas fa-compass text-white text-lg"></i>
+                </div>
+                <span class="text-text-high font-bold text-xl">ESG Compass</span>
+            </div>
+            <div class="hidden md:flex items-center space-x-8">
+                <span class="text-text-muted hover:text-text-high transition-colors duration-150 cursor-pointer">Dashboard</span>
+                <span class="text-text-muted hover:text-text-high transition-colors duration-150 cursor-pointer">Reports</span>
+                <span class="text-text-muted hover:text-text-high transition-colors duration-150 cursor-pointer">Settings</span>
+                <div class="flex items-center space-x-3">
+                    <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-1.jpg" alt="User" class="w-8 h-8 rounded-full">
+                    <span class="text-text-high text-sm">Sarah</span>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main id="wizard-container" class="px-6 lg:px-20 py-8">
+        <div class="max-w-6xl mx-auto">
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                <div id="wizard-sidebar" class="lg:col-span-1">
+                    <div class="bg-surface-glass backdrop-blur-glass border border-white/10 rounded-[18px] p-6 sticky top-8">
+                        <div class="space-y-6">
+                            <div class="text-center">
+                                <h2 class="text-text-high font-bold text-xl mb-2">Setup Wizard</h2>
+                                <p class="text-text-muted text-sm">Step 1 of 4</p>
+                            </div>
+
+                            <div id="stepper-progress" class="space-y-4">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-8 h-8 bg-brand-green rounded-full flex items-center justify-center">
+                                        <span class="text-white text-sm font-semibold">1</span>
+                                    </div>
+                                    <div>
+                                        <div class="text-text-high font-medium">Business Info</div>
+                                        <div class="text-text-muted text-xs">Company details</div>
+                                    </div>
+                                </div>
+
+                                <div class="ml-4 w-0.5 h-8 bg-white/20"></div>
+
+                                <div class="flex items-center space-x-3 opacity-50">
+                                    <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                                        <span class="text-text-muted text-sm font-semibold">2</span>
+                                    </div>
+                                    <div>
+                                        <div class="text-text-muted font-medium">Locations</div>
+                                        <div class="text-text-muted text-xs">Sites &amp; facilities</div>
+                                    </div>
+                                </div>
+
+                                <div class="ml-4 w-0.5 h-8 bg-white/20"></div>
+
+                                <div class="flex items-center space-x-3 opacity-50">
+                                    <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                                        <span class="text-text-muted text-sm font-semibold">3</span>
+                                    </div>
+                                    <div>
+                                        <div class="text-text-muted font-medium">Metrics</div>
+                                        <div class="text-text-muted text-xs">Data collection</div>
+                                    </div>
+                                </div>
+
+                                <div class="ml-4 w-0.5 h-8 bg-white/20"></div>
+
+                                <div class="flex items-center space-x-3 opacity-50">
+                                    <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                                        <span class="text-text-muted text-sm font-semibold">4</span>
+                                    </div>
+                                    <div>
+                                        <div class="text-text-muted font-medium">Evidence</div>
+                                        <div class="text-text-muted text-xs">Upload documents</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="progress-indicator" class="space-y-2">
+                                <div class="flex justify-between text-xs text-text-muted">
+                                    <span>Progress</span>
+                                    <span>25%</span>
+                                </div>
+                                <div class="w-full bg-white/20 rounded-full h-2">
+                                    <div class="bg-brand-green h-2 rounded-full transition-all duration-300" style="width: 25%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="wizard-content" class="lg:col-span-3">
+                    <div class="bg-surface-glass backdrop-blur-glass border border-white/10 rounded-[18px] p-8">
+                        <div class="space-y-8">
+                            <div id="step-header" class="space-y-2">
+                                <h1 class="text-text-high font-bold text-2xl">Tell us about your business</h1>
+                                <p class="text-text-muted">We'll use this information to customize your ESG assessment and ensure compliance with UAE regulations.</p>
+                            </div>
+
+                            <form id="business-info-form" class="space-y-6">
+                                <div id="business-name-field" class="space-y-2">
+                                    <label class="block text-text-high font-medium">Business Name *</label>
+                                    <input type="text" placeholder="Enter your company name" class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-text-high placeholder-text-muted focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green transition-colors duration-150">
+                                    <p class="text-text-muted text-xs">This will appear on your ESG reports and certificates</p>
+                                </div>
+
+                                <div id="industry-field" class="space-y-2">
+                                    <label class="block text-text-high font-medium">Industry *</label>
+                                    <div class="relative">
+                                        <select class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-text-high focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green transition-colors duration-150 appearance-none">
+                                            <option value="">Select your industry</option>
+                                            <option value="hospitality">Hospitality &amp; Tourism</option>
+                                            <option value="construction">Construction &amp; Real Estate</option>
+                                            <option value="logistics">Logistics &amp; Transportation</option>
+                                            <option value="retail">Retail &amp; E-commerce</option>
+                                            <option value="manufacturing">Manufacturing</option>
+                                            <option value="technology">Technology &amp; Software</option>
+                                            <option value="finance">Finance &amp; Banking</option>
+                                            <option value="healthcare">Healthcare</option>
+                                            <option value="education">Education</option>
+                                            <option value="other">Other</option>
+                                        </select>
+                                        <i class="fas fa-chevron-down absolute right-4 top-1/2 transform -translate-y-1/2 text-text-muted pointer-events-none"></i>
+                                    </div>
+                                    <p class="text-text-muted text-xs">Helps us apply relevant ESG frameworks and benchmarks</p>
+                                </div>
+
+                                <div id="employees-field" class="space-y-2">
+                                    <label class="block text-text-high font-medium">Number of Employees *</label>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div class="relative">
+                                            <select class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-text-high focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green transition-colors duration-150 appearance-none">
+                                                <option value="">Select range</option>
+                                                <option value="1-10">1-10 employees</option>
+                                                <option value="11-50">11-50 employees</option>
+                                                <option value="51-200">51-200 employees</option>
+                                                <option value="201-500">201-500 employees</option>
+                                                <option value="500+">500+ employees</option>
+                                            </select>
+                                            <i class="fas fa-chevron-down absolute right-4 top-1/2 transform -translate-y-1/2 text-text-muted pointer-events-none"></i>
+                                        </div>
+                                        <div class="flex items-center space-x-3 p-3 bg-white/5 rounded-xl border border-white/10">
+                                            <i class="fas fa-info-circle text-brand-blue"></i>
+                                            <span class="text-text-muted text-sm">SME classification applies</span>
+                                        </div>
+                                    </div>
+                                    <p class="text-text-muted text-xs">Determines reporting requirements and available frameworks</p>
+                                </div>
+
+                                <div id="additional-info" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div class="space-y-2">
+                                        <label class="block text-text-high font-medium">Emirates Location</label>
+                                        <div class="relative">
+                                            <select class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-text-high focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green transition-colors duration-150 appearance-none">
+                                                <option value="">Select emirate</option>
+                                                <option value="abu-dhabi">Abu Dhabi</option>
+                                                <option value="dubai">Dubai</option>
+                                                <option value="sharjah">Sharjah</option>
+                                                <option value="ajman">Ajman</option>
+                                                <option value="umm-al-quwain">Umm Al Quwain</option>
+                                                <option value="ras-al-khaimah">Ras Al Khaimah</option>
+                                                <option value="fujairah">Fujairah</option>
+                                            </select>
+                                            <i class="fas fa-chevron-down absolute right-4 top-1/2 transform -translate-y-1/2 text-text-muted pointer-events-none"></i>
+                                        </div>
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <label class="block text-text-high font-medium">Business License Type</label>
+                                        <div class="relative">
+                                            <select class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-text-high focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green transition-colors duration-150 appearance-none">
+                                                <option value="">Select license type</option>
+                                                <option value="commercial">Commercial</option>
+                                                <option value="professional">Professional</option>
+                                                <option value="industrial">Industrial</option>
+                                                <option value="tourism">Tourism</option>
+                                                <option value="free-zone">Free Zone</option>
+                                            </select>
+                                            <i class="fas fa-chevron-down absolute right-4 top-1/2 transform -translate-y-1/2 text-text-muted pointer-events-none"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+
+                            <div id="form-actions" class="flex flex-col sm:flex-row gap-4 pt-6 border-t border-white/10">
+                                <button class="flex-1 px-6 py-3 bg-brand-green hover:bg-green-500 text-white font-semibold rounded-xl transition-all duration-150 hover:scale-105">
+                                    Continue to Locations
+                                    <i class="fas fa-arrow-right ml-2"></i>
+                                </button>
+                                <button class="px-6 py-3 border border-white/20 text-text-muted hover:text-text-high hover:bg-white/5 rounded-xl transition-all duration-150">
+                                    Cancel Setup
+                                </button>
+                            </div>
+
+                            <div id="help-section" class="bg-white/5 rounded-xl p-4 border border-white/10">
+                                <div class="flex items-start space-x-3">
+                                    <i class="fas fa-lightbulb text-brand-blue mt-1"></i>
+                                    <div class="space-y-1">
+                                        <h4 class="text-text-high font-medium text-sm">Need help?</h4>
+                                        <p class="text-text-muted text-xs">Our setup wizard guides you through UAE-specific ESG requirements. You can always update this information later in Settings.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Form validation and interaction
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('business-info-form');
+            const continueBtn = document.querySelector('button[class*="bg-brand-green"]');
+            
+            // Enable/disable continue button based on required fields
+            function validateForm() {
+                const requiredFields = form.querySelectorAll('input[required], select[required]');
+                let allValid = true;
+                
+                requiredFields.forEach(field => {
+                    if (!field.value.trim()) {
+                        allValid = false;
+                    }
+                });
+                
+                continueBtn.disabled = !allValid;
+                if (!allValid) {
+                    continueBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                } else {
+                    continueBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+            }
+            
+            // Add event listeners to form fields
+            form.addEventListener('input', validateForm);
+            form.addEventListener('change', validateForm);
+            
+            // Initial validation
+            validateForm();
+            
+            // Progress animation
+            const progressBar = document.querySelector('.bg-brand-green');
+            setTimeout(() => {
+                progressBar.style.width = '25%';
+            }, 500);
+        });
+    </script>
+
+</body></html>

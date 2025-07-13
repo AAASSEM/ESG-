@@ -1,0 +1,161 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESG Assessment Report - {{ company.name }}</title>
+    <style>{{ css_styles }}</style>
+</head>
+<body>
+    <div class="report-container">
+        <!-- Header -->
+        <header class="report-header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <h1>ESG Assessment Report</h1>
+                    <p class="report-subtitle">Environmental, Social & Governance Compliance</p>
+                </div>
+                <div class="company-info">
+                    <h2>{{ company.name }}</h2>
+                    <p>Sector: {{ company.business_sector.value.replace('_', ' ').title() if company.business_sector else 'N/A' }}</p>
+                    <p>Generated: {{ generated_at|format_date }}</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Executive Summary -->
+        <section class="executive-summary">
+            <h2>Executive Summary</h2>
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <h3>Overall Completion</h3>
+                    <div class="metric-large">{{ statistics.completion_rate|format_percentage }}</div>
+                    <p>{{ statistics.completed_tasks }} of {{ statistics.total_tasks }} tasks completed</p>
+                </div>
+                <div class="summary-card">
+                    <h3>ESG Scoping</h3>
+                    <div class="metric-status {{ 'completed' if scoping_summary.completed else 'pending' }}">
+                        {{ 'Completed' if scoping_summary.completed else 'Pending' }}
+                    </div>
+                    {% if scoping_summary.completed %}
+                    <p>Completed on {{ scoping_summary.completed_at|format_date }}</p>
+                    {% endif %}
+                </div>
+                <div class="summary-card">
+                    <h3>Active Frameworks</h3>
+                    <div class="metric-medium">{{ frameworks|length }}</div>
+                    <p>Applicable ESG frameworks</p>
+                </div>
+                <div class="summary-card">
+                    <h3>Overdue Tasks</h3>
+                    <div class="metric-medium {{ 'alert' if statistics.overdue_tasks > 0 else 'good' }}">
+                        {{ statistics.overdue_tasks }}
+                    </div>
+                    <p>Tasks past due date</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Progress by Category -->
+        <section class="category-progress">
+            <h2>Progress by ESG Category</h2>
+            <div class="category-grid">
+                {% for category, stats in statistics.category_breakdown.items() %}
+                <div class="category-card">
+                    <div class="category-header">
+                        <span class="category-icon">{{ category|get_category_icon }}</span>
+                        <h3>{{ category.replace('_', ' ').title() }}</h3>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ stats.completion_rate }}%"></div>
+                    </div>
+                    <p>{{ stats.completed }} / {{ stats.total }} tasks ({{ stats.completion_rate|format_percentage }})</p>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <!-- Framework Coverage -->
+        {% if statistics.framework_coverage %}
+        <section class="framework-coverage">
+            <h2>Framework Coverage</h2>
+            <div class="framework-list">
+                {% for framework, coverage in statistics.framework_coverage.items() %}
+                <div class="framework-item">
+                    <div class="framework-info">
+                        <h4>{{ framework }}</h4>
+                        <span class="coverage-percentage">{{ coverage.completion_rate|format_percentage }}</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ coverage.completion_rate }}%"></div>
+                    </div>
+                    <p>{{ coverage.completed }} / {{ coverage.total }} requirements completed</p>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Detailed Task Breakdown -->
+        <section class="task-breakdown">
+            <h2>Detailed Task Analysis</h2>
+            {% for category, task_list in tasks_by_category.items() %}
+            {% if task_list %}
+            <div class="category-section">
+                <h3>{{ category|get_category_icon }} {{ category.replace('_', ' ').title() }}</h3>
+                <div class="task-list">
+                    {% for task in task_list %}
+                    <div class="task-item {{ task.status.value }}">
+                        <div class="task-header">
+                            <h4>{{ task.title }}</h4>
+                            <span class="task-status" style="background-color: {{ task.status|get_status_color }}">
+                                {{ task.status.value.replace('_', ' ').title() }}
+                            </span>
+                        </div>
+                        {% if task.description %}
+                        <p class="task-description">{{ task.description }}</p>
+                        {% endif %}
+                        <div class="task-meta">
+                            {% if task.due_date %}
+                            <span class="due-date">Due: {{ task.due_date|format_date }}</span>
+                            {% endif %}
+                            {% if task.framework_tags %}
+                            <span class="frameworks">Frameworks: {{ task.framework_tags|join(', ') }}</span>
+                            {% endif %}
+                        </div>
+                        {% if include_evidence and evidence_by_task.get(task.id) %}
+                        <div class="evidence-section">
+                            <h5>Evidence Files ({{ evidence_by_task[task.id]|length }})</h5>
+                            <ul class="evidence-list">
+                                {% for evidence in evidence_by_task[task.id] %}
+                                <li>
+                                    {{ evidence.original_filename }}
+                                    <span class="upload-date">({{ evidence.uploaded_at|format_date }})</span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </section>
+
+        <!-- Footer -->
+        <footer class="report-footer">
+            <div class="footer-content">
+                <p>This report was generated automatically by the ESG Scoping & Task Management Platform</p>
+                <p>Report Version: {{ report_version }} | Generated: {{ generated_at|format_date }}</p>
+                <p class="disclaimer">
+                    This report provides a comprehensive overview of ESG compliance progress based on current task completion status.
+                    Please ensure all evidence files are properly maintained for regulatory compliance.
+                </p>
+            </div>
+        </footer>
+    </div>
+</body>
+</html>

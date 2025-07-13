@@ -1,0 +1,392 @@
+<html><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>window.FontAwesomeConfig = { autoReplaceSvg: 'nest'};</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    
+    <script>tailwind.config = {
+  "theme": {
+    "extend": {
+      "fontFamily": {
+        "inter": [
+          "Inter",
+          "sans-serif"
+        ],
+        "sans": [
+          "Inter",
+          "sans-serif"
+        ]
+      },
+      "colors": {
+        "brand-green": "#2EC57D",
+        "brand-blue": "#3DAEFF",
+        "brand-teal": "#20C5C5",
+        "surface-glass": "rgba(30, 32, 44, 0.24)",
+        "text-high": "#F8F9FA",
+        "text-muted": "rgba(248, 249, 250, 0.72)"
+      },
+      "backdropBlur": {
+        "glass": "12px"
+      },
+      "borderRadius": {
+        "card": "18px"
+      },
+      "animation": {
+        "progress-fill": "progress-fill 2s cubic-bezier(0.4, 0, 0.2, 1) forwards",
+        "fade-in": "fade-in 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards"
+      }
+    }
+  }
+};</script>
+    <style>
+        ::-webkit-scrollbar { display: none; }
+        body { font-family: 'Inter', sans-serif; }
+        
+        @keyframes progress-fill {
+            from { width: 0%; }
+            to { width: var(--progress-value); }
+        }
+        
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .glass-card {
+            background: rgba(30, 32, 44, 0.24);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .glass-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+        
+        .gradient-bg {
+            background: radial-gradient(ellipse at top, #1C1330 0%, #131A2C 100%);
+        }
+        
+        .progress-bar {
+            transition: width 2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+    </style>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;500;600;700;800;900&amp;display=swap"><style>
+  .highlighted-section {
+    outline: 2px solid #3F20FB;
+    background-color: rgba(63, 32, 251, 0.1);
+  }
+
+  .edit-button {
+    position: absolute;
+    z-index: 1000;
+  }
+
+  ::-webkit-scrollbar {
+    display: none;
+  }
+
+  html, body {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  </style></head>
+<body class="gradient-bg min-h-screen text-text-high font-inter">
+    
+    <header id="header" class="relative z-50 px-6 py-6">
+        <nav class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-brand-green flex items-center justify-center">
+                    <i class="fa-solid fa-compass text-white text-lg"></i>
+                </div>
+                <span class="text-xl font-bold text-text-high">ESG Compass</span>
+            </div>
+            
+            <div class="hidden md:flex items-center space-x-8">
+                <span class="text-text-muted hover:text-text-high transition-colors cursor-pointer">Dashboard</span>
+                <span class="text-brand-green font-semibold">Progress</span>
+                <span class="text-text-muted hover:text-text-high transition-colors cursor-pointer">Reports</span>
+                <span class="text-text-muted hover:text-text-high transition-colors cursor-pointer">Settings</span>
+                <div class="w-8 h-8 rounded-full bg-brand-blue flex items-center justify-center">
+                    <i class="fa-solid fa-user text-white text-sm"></i>
+                </div>
+            </div>
+            
+            <button class="md:hidden text-text-high">
+                <i class="fa-solid fa-bars text-xl"></i>
+            </button>
+        </nav>
+    </header>
+
+    <main id="main-content" class="relative px-6 py-8">
+        <div class="max-w-7xl mx-auto">
+            
+            <div id="page-header" class="mb-8">
+                <div class="flex items-center space-x-3 mb-4">
+                    <button class="text-text-muted hover:text-text-high transition-colors">
+                        <i class="fa-solid fa-arrow-left"></i>
+                    </button>
+                    <h1 class="text-3xl font-bold">Progress Tracker</h1>
+                </div>
+                <p class="text-text-muted text-lg">Track your ESG data completion and evidence upload progress</p>
+            </div>
+
+            <div id="progress-overview" class="grid lg:grid-cols-2 gap-8 mb-8">
+                
+                <div id="data-progress-card" class="glass-card rounded-card p-8">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-12 h-12 bg-brand-blue/20 rounded-lg flex items-center justify-center">
+                                <i class="fa-solid fa-chart-line text-brand-blue text-xl"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-semibold">Data Entered</h3>
+                                <p class="text-text-muted text-sm">ESG metrics completion</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-3xl font-bold text-brand-blue">68%</div>
+                            <div class="text-sm text-text-muted">147 of 216 fields</div>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <div class="bg-white/10 rounded-full h-3 overflow-hidden">
+                            <div class="progress-bar h-full bg-brand-blue rounded-full" style="--progress-value: 68%; width: 68%;"></div>
+                        </div>
+                        
+                        <div class="grid grid-cols-3 gap-4 text-center">
+                            <div class="space-y-1">
+                                <div class="text-lg font-semibold text-brand-green">85%</div>
+                                <div class="text-xs text-text-muted">Environmental</div>
+                            </div>
+                            <div class="space-y-1">
+                                <div class="text-lg font-semibold text-brand-blue">72%</div>
+                                <div class="text-xs text-text-muted">Social</div>
+                            </div>
+                            <div class="space-y-1">
+                                <div class="text-lg font-semibold text-brand-teal">48%</div>
+                                <div class="text-xs text-text-muted">Governance</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="evidence-progress-card" class="glass-card rounded-card p-8">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-12 h-12 bg-brand-teal/20 rounded-lg flex items-center justify-center">
+                                <i class="fa-solid fa-file-upload text-brand-teal text-xl"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-semibold">Evidence Uploaded</h3>
+                                <p class="text-text-muted text-sm">Supporting documents</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-3xl font-bold text-brand-teal">42%</div>
+                            <div class="text-sm text-text-muted">23 of 55 files</div>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <div class="bg-white/10 rounded-full h-3 overflow-hidden">
+                            <div class="progress-bar h-full bg-brand-teal rounded-full" style="--progress-value: 42%; width: 42%;"></div>
+                        </div>
+                        
+                        <div class="grid grid-cols-3 gap-4 text-center">
+                            <div class="space-y-1">
+                                <div class="text-lg font-semibold text-brand-green">65%</div>
+                                <div class="text-xs text-text-muted">Environmental</div>
+                            </div>
+                            <div class="space-y-1">
+                                <div class="text-lg font-semibold text-brand-blue">38%</div>
+                                <div class="text-xs text-text-muted">Social</div>
+                            </div>
+                            <div class="space-y-1">
+                                <div class="text-lg font-semibold text-brand-teal">25%</div>
+                                <div class="text-xs text-text-muted">Governance</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="detailed-breakdown" class="glass-card rounded-card p-8 mb-8">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold">Detailed Breakdown</h3>
+                    <div class="flex space-x-2">
+                        <button class="px-4 py-2 bg-brand-green text-white rounded-lg text-sm font-medium">Data</button>
+                        <button class="px-4 py-2 bg-white/10 text-text-muted rounded-lg text-sm font-medium hover:bg-white/20 transition-colors">Evidence</button>
+                    </div>
+                </div>
+                
+                <div id="progress-sections" class="space-y-6">
+                    
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <i class="fa-solid fa-leaf text-brand-green"></i>
+                                <span class="font-semibold">Environmental Metrics</span>
+                            </div>
+                            <span class="text-brand-green font-semibold">85% Complete</span>
+                        </div>
+                        <div class="bg-white/10 rounded-full h-2">
+                            <div class="h-full bg-brand-green rounded-full" style="width: 85%;"></div>
+                        </div>
+                        <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-text-muted">Energy Usage</span>
+                                <span class="text-brand-green">✓ Complete</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-text-muted">Water Consumption</span>
+                                <span class="text-brand-green">✓ Complete</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-text-muted">Waste Management</span>
+                                <span class="text-yellow-400">⚡ In Progress</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-text-muted">Carbon Emissions</span>
+                                <span class="text-red-400">✗ Pending</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <i class="fa-solid fa-users text-brand-blue"></i>
+                                <span class="font-semibold">Social Metrics</span>
+                            </div>
+                            <span class="text-brand-blue font-semibold">72% Complete</span>
+                        </div>
+                        <div class="bg-white/10 rounded-full h-2">
+                            <div class="h-full bg-brand-blue rounded-full" style="width: 72%;"></div>
+                        </div>
+                        <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-text-muted">Employee Diversity</span>
+                                <span class="text-brand-green">✓ Complete</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-text-muted">Training Programs</span>
+                                <span class="text-yellow-400">⚡ In Progress</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-text-muted">Community Impact</span>
+                                <span class="text-red-400">✗ Pending</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-text-muted">Health &amp; Safety</span>
+                                <span class="text-brand-green">✓ Complete</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <i class="fa-solid fa-shield-halved text-brand-teal"></i>
+                                <span class="font-semibold">Governance Metrics</span>
+                            </div>
+                            <span class="text-brand-teal font-semibold">48% Complete</span>
+                        </div>
+                        <div class="bg-white/10 rounded-full h-2">
+                            <div class="h-full bg-brand-teal rounded-full" style="width: 48%;"></div>
+                        </div>
+                        <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-text-muted">Board Structure</span>
+                                <span class="text-brand-green">✓ Complete</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-text-muted">Ethics Policies</span>
+                                <span class="text-red-400">✗ Pending</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-text-muted">Risk Management</span>
+                                <span class="text-red-400">✗ Pending</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-text-muted">Compliance</span>
+                                <span class="text-yellow-400">⚡ In Progress</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="action-items" class="glass-card rounded-card p-8">
+                <h3 class="text-xl font-semibold mb-6">Next Steps</h3>
+                <div class="space-y-4">
+                    <div class="flex items-center space-x-4 p-4 bg-white/5 rounded-lg">
+                        <div class="w-8 h-8 bg-red-500/20 rounded-lg flex items-center justify-center">
+                            <i class="fa-solid fa-exclamation text-red-400"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="font-semibold">Complete Carbon Emissions Data</div>
+                            <div class="text-sm text-text-muted">Required for Environmental score calculation</div>
+                        </div>
+                        <button class="px-4 py-2 bg-brand-green text-white rounded-lg text-sm font-medium hover:bg-opacity-90 transition-all">
+                            Continue
+                        </button>
+                    </div>
+                    
+                    <div class="flex items-center space-x-4 p-4 bg-white/5 rounded-lg">
+                        <div class="w-8 h-8 bg-yellow-500/20 rounded-lg flex items-center justify-center">
+                            <i class="fa-solid fa-upload text-yellow-400"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="font-semibold">Upload Supporting Documents</div>
+                            <div class="text-sm text-text-muted">32 files needed for evidence completion</div>
+                        </div>
+                        <button class="px-4 py-2 bg-brand-teal text-white rounded-lg text-sm font-medium hover:bg-opacity-90 transition-all">
+                            Upload
+                        </button>
+                    </div>
+                    
+                    <div class="flex items-center space-x-4 p-4 bg-white/5 rounded-lg">
+                        <div class="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                            <i class="fa-solid fa-chart-line text-brand-blue"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="font-semibold">Review Governance Policies</div>
+                            <div class="text-sm text-text-muted">Ethics and risk management sections need attention</div>
+                        </div>
+                        <button class="px-4 py-2 bg-brand-blue text-white rounded-lg text-sm font-medium hover:bg-opacity-90 transition-all">
+                            Review
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer id="footer" class="px-6 py-12 border-t border-white/10 mt-16">
+        <div class="max-w-7xl mx-auto text-center space-y-8">
+            <div class="flex items-center justify-center space-x-3">
+                <div class="w-8 h-8 rounded-lg bg-brand-green flex items-center justify-center">
+                    <i class="fa-solid fa-compass text-white"></i>
+                </div>
+                <span class="text-lg font-bold">ESG Compass</span>
+            </div>
+            
+            <div class="flex flex-wrap justify-center gap-8 text-sm text-text-muted">
+                <span class="hover:text-text-high transition-colors cursor-pointer">Privacy Policy</span>
+                <span class="hover:text-text-high transition-colors cursor-pointer">Terms of Service</span>
+                <span class="hover:text-text-high transition-colors cursor-pointer">Contact</span>
+                <span class="hover:text-text-high transition-colors cursor-pointer">Support</span>
+            </div>
+            
+            <p class="text-sm text-text-muted">
+                © 2024 ESG Compass. Helping UAE SMEs achieve sustainability goals.
+            </p>
+        </div>
+    </footer>
+
+
+</body></html>
