@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { taskStorage, type Task } from '../services/taskStorage'
+import { taskStorage, type Task, type EvidenceFile } from '../services/taskStorage'
 import { userStorage, type User } from '../services/userStorage'
 
 // Remove the local Task interface as we're importing it from taskStorage
@@ -163,18 +163,14 @@ const TaskManagement = () => {
 
   const uploadFiles = () => {
     if (taskToUpload && selectedFiles.length > 0) {
-      // In a real app, this would upload to a server
-      // For now, we'll simulate by updating the task's evidence count
-      const newEvidenceCount = taskToUpload.evidence_count + selectedFiles.length
-      
-      taskStorage.updateTask(taskToUpload.id, { 
-        evidence_count: newEvidenceCount 
+      // Add each file to the task's evidence files
+      selectedFiles.forEach(file => {
+        taskStorage.addEvidenceFile(taskToUpload.id, file, uploadDescription)
       })
       
-      // Update local state
-      setTasks(tasks.map(task => 
-        task.id === taskToUpload.id ? { ...task, evidence_count: newEvidenceCount } : task
-      ))
+      // Reload tasks to get updated data
+      const updatedTasks = taskStorage.getTasks()
+      setTasks(updatedTasks)
       
       // Close modal and reset state
       setIsUploadModalOpen(false)
@@ -187,6 +183,22 @@ const TaskManagement = () => {
       
       // Show success message
       alert(`Successfully uploaded ${selectedFiles.length} evidence file(s)!`)
+    }
+  }
+
+  const deleteEvidenceFile = (taskId: string, fileId: string) => {
+    if (confirm('Are you sure you want to delete this file?')) {
+      taskStorage.removeEvidenceFile(taskId, fileId)
+      
+      // Reload tasks to get updated data
+      const updatedTasks = taskStorage.getTasks()
+      setTasks(updatedTasks)
+      
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new CustomEvent('tasksUpdated'))
+      
+      // Show success message
+      alert('File deleted successfully!')
     }
   }
 
@@ -267,7 +279,7 @@ const TaskManagement = () => {
     }
   }
 
-  const styles = {
+  const styles: Record<string, React.CSSProperties> = {
     container: {
       padding: '2rem',
       backgroundColor: '#111827',
@@ -299,7 +311,7 @@ const TaskManagement = () => {
       padding: '1.5rem',
       borderRadius: '0.75rem',
       border: '1px solid #374151',
-      textAlign: 'center'
+      textAlign: 'center' as const
     },
     statValue: {
       fontSize: '2rem',
@@ -353,7 +365,8 @@ const TaskManagement = () => {
       borderRadius: '0.5rem',
       color: 'white',
       fontSize: '0.875rem',
-      outline: 'none'
+      outline: 'none',
+      boxSizing: 'border-box'
     },
     select: {
       width: '100%',
@@ -363,7 +376,8 @@ const TaskManagement = () => {
       borderRadius: '0.5rem',
       color: 'white',
       fontSize: '0.875rem',
-      outline: 'none'
+      outline: 'none',
+      boxSizing: 'border-box'
     },
     addButton: {
       padding: '0.75rem 1.5rem',
@@ -388,8 +402,8 @@ const TaskManagement = () => {
     },
     taskHeader: {
       display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
+      justifyContent: 'space-between' as const,
+      alignItems: 'flex-start' as const,
       marginBottom: '1rem'
     },
     taskTitle: {
@@ -465,7 +479,7 @@ const TaskManagement = () => {
       padding: '3rem',
       borderRadius: '0.75rem',
       border: '1px solid #374151',
-      textAlign: 'center'
+      textAlign: 'center' as const
     },
     emptyIcon: {
       fontSize: '3rem',
@@ -489,8 +503,8 @@ const TaskManagement = () => {
       bottom: 0,
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
       display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
       zIndex: 1000
     },
     modalContent: {
@@ -633,10 +647,6 @@ const TaskManagement = () => {
             />
           </div>
 
-          <button style={styles.addButton}>
-            <span>➕</span>
-            <span>Add Task</span>
-          </button>
         </div>
       </div>
 
@@ -701,16 +711,7 @@ const TaskManagement = () => {
                 >
                   👁️ View Details
                 </button>
-                <button 
-                  style={{...styles.actionButton, ...styles.secondaryAction}}
-                  onClick={() => handleStatusChange(task.id, 
-                    task.status === 'completed' ? 'todo' : 
-                    task.status === 'todo' ? 'in_progress' : 'completed'
-                  )}
-                >
-                  {task.status === 'completed' ? '🔄 Reopen' : 
-                   task.status === 'todo' ? '▶️ Start' : '✅ Complete'}
-                </button>
+                
                 <button 
                   style={{...styles.actionButton, ...styles.secondaryAction}}
                   onClick={() => handleAssignUser(task.id)}
@@ -803,7 +804,10 @@ const TaskManagement = () => {
 
             <div style={{marginBottom: '1.5rem'}}>
               <h3 style={{fontSize: '1.125rem', fontWeight: '600', color: 'white', marginBottom: '0.5rem'}}>
-                Evidence Files ({selectedTask.evidence.length})
+                Evidence Files ({(() => {
+                  const currentTask = tasks.find(t => t.id === selectedTask.id);
+                  return currentTask?.evidence_files?.length || 0;
+                })()})
               </h3>
               
               {/* Evidence Progress */}
@@ -845,72 +849,98 @@ const TaskManagement = () => {
                 </div>
               </div>
               
-              {selectedTask.evidence.length === 0 ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '2rem',
-                  backgroundColor: '#374151',
-                  borderRadius: '0.5rem',
-                  color: '#9ca3af'
-                }}>
-                  <div style={{fontSize: '2rem', marginBottom: '0.5rem'}}>📁</div>
-                  <p>No evidence files uploaded yet</p>
-                  <button 
-                    style={{
-                      marginTop: '1rem',
-                      padding: '0.5rem 1rem',
-                      backgroundColor: '#3b82f6',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '0.375rem',
-                      cursor: 'pointer',
-                      fontSize: '0.875rem'
-                    }}
-                    onClick={() => {
-                      setIsModalOpen(false)
-                      handleUploadEvidence(selectedTask.id)
-                    }}
-                  >
-                    📎 Upload Evidence
-                  </button>
-                </div>
-              ) : (
-                <div style={{display: 'flex', flexDirection: 'column', gap: '0.5rem'}}>
-                  {selectedTask.evidence.map((file, index) => (
-                    <div 
-                      key={index} 
+              {(() => {
+                const currentTask = tasks.find(t => t.id === selectedTask.id);
+                const evidenceFiles = currentTask?.evidence_files || [];
+                
+                return evidenceFiles.length === 0 ? (
+                  <div style={{
+                    textAlign: 'center' as const,
+                    padding: '2rem',
+                    backgroundColor: '#374151',
+                    borderRadius: '0.5rem',
+                    color: '#9ca3af'
+                  }}>
+                    <div style={{fontSize: '2rem', marginBottom: '0.5rem'}}>📁</div>
+                    <p>No evidence files uploaded yet</p>
+                    <button 
                       style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '0.75rem',
-                        backgroundColor: '#374151',
-                        borderRadius: '0.5rem'
-                      }}
-                    >
-                      <div>
-                        <div style={{fontSize: '0.875rem', color: 'white', fontWeight: '500'}}>
-                          📄 {file.filename}
-                        </div>
-                        <div style={{fontSize: '0.75rem', color: '#9ca3af'}}>
-                          Uploaded by {file.uploaded_by} • {new Date(file.upload_date).toLocaleDateString()}
-                        </div>
-                      </div>
-                      <button style={{
+                        marginTop: '1rem',
                         padding: '0.5rem 1rem',
-                        backgroundColor: '#10b981',
+                        backgroundColor: '#3b82f6',
                         color: 'white',
                         border: 'none',
                         borderRadius: '0.375rem',
                         cursor: 'pointer',
-                        fontSize: '0.75rem'
-                      }}>
-                        📥 Download
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+                        fontSize: '0.875rem'
+                      }}
+                      onClick={() => {
+                        setIsModalOpen(false)
+                        handleUploadEvidence(selectedTask.id)
+                      }}
+                    >
+                      📎 Upload Evidence
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{display: 'flex', flexDirection: 'column', gap: '0.5rem'}}>
+                    {evidenceFiles.map((file: EvidenceFile) => (
+                      <div 
+                        key={file.id} 
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '0.75rem',
+                          backgroundColor: '#374151',
+                          borderRadius: '0.5rem'
+                        }}
+                      >
+                        <div style={{flex: 1}}>
+                          <div style={{fontSize: '0.875rem', color: 'white', fontWeight: '500', marginBottom: '0.25rem'}}>
+                            {getFileIcon(file.filename)} {file.filename}
+                          </div>
+                          <div style={{fontSize: '0.75rem', color: '#9ca3af'}}>
+                            Uploaded by {file.uploadedBy} • {new Date(file.uploadedAt).toLocaleDateString()} • {(file.size / 1024 / 1024).toFixed(2)} MB
+                          </div>
+                          {file.description && (
+                            <div style={{fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem'}}>
+                              📝 {file.description}
+                            </div>
+                          )}
+                        </div>
+                        <div style={{display: 'flex', gap: '0.5rem'}}>
+                          <button style={{
+                            padding: '0.5rem 1rem',
+                            backgroundColor: '#10b981',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '0.375rem',
+                            cursor: 'pointer',
+                            fontSize: '0.75rem'
+                          }}>
+                            📥 Download
+                          </button>
+                          <button 
+                            style={{
+                              padding: '0.5rem 1rem',
+                              backgroundColor: '#ef4444',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '0.375rem',
+                              cursor: 'pointer',
+                              fontSize: '0.75rem'
+                            }}
+                            onClick={() => deleteEvidenceFile(selectedTask.id, file.id)}
+                          >
+                            🗑️ Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
 
             <div style={{display: 'flex', gap: '1rem', justifyContent: 'flex-end'}}>
@@ -972,7 +1002,7 @@ const TaskManagement = () => {
             </div>
 
             <div style={{display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem'}}>
-              {users.filter(user => user.status === 'active').map((user) => (
+              {users.filter(user => user.status === 'active' && user.role !== 'viewer').map((user) => (
                 <div 
                   key={user.id}
                   style={{
@@ -996,8 +1026,8 @@ const TaskManagement = () => {
                       backgroundColor: 'rgba(16, 185, 129, 0.2)',
                       borderRadius: '50%',
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      alignItems: 'center' as const,
+                      justifyContent: 'center' as const,
                       fontSize: '0.75rem',
                       fontWeight: '600',
                       color: '#10b981'
@@ -1143,7 +1173,8 @@ const TaskManagement = () => {
                   borderRadius: '0.5rem',
                   color: 'white',
                   fontSize: '0.875rem',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  boxSizing: 'border-box'
                 }}
               />
               
@@ -1201,7 +1232,8 @@ const TaskManagement = () => {
                   color: 'white',
                   fontSize: '0.875rem',
                   resize: 'vertical',
-                  outline: 'none'
+                  outline: 'none',
+                  boxSizing: 'border-box'
                 }}
               />
             </div>

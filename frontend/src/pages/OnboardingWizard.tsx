@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import LocationsStep from '../components/onboarding/LocationsStep';
 import ESGScopingWizard from '../components/onboarding/ESGScopingWizard';
 import { locationStorage, type LocationData } from '../services/locationStorage';
@@ -18,22 +19,86 @@ interface BusinessData {
 
 const OnboardingWizard: React.FC = () => {
   const navigate = useNavigate();
+  const { company } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [businessData, setBusinessData] = useState<BusinessData>({
-    companyName: '',
-    businessSector: '',
+    companyName: company?.name || '',
+    businessSector: company?.business_sector || '',
     companySize: '',
-    primaryEmirate: '',
+    primaryEmirate: company?.main_location || '',
     registrationNumber: '',
-    website: '',
+    website: company?.website || '',
     contactPerson: '',
     contactEmail: '',
     contactPhone: ''
   });
+
+  // Update business data when company changes (e.g., new login)
+  useEffect(() => {
+    if (company) {
+      setBusinessData(prev => ({
+        ...prev,
+        companyName: company.name || '',
+        businessSector: company.business_sector || '',
+        primaryEmirate: company.main_location || '',
+        website: company.website || ''
+      }));
+    }
+  }, [company]);
+
+  // Load existing business data when component mounts
+  useEffect(() => {
+    const loadExistingBusinessData = () => {
+      try {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        const companyId = currentUser.company_id;
+        
+        if (companyId) {
+          const savedBusinessData = localStorage.getItem(`onboarding_business_data_${companyId}`);
+          if (savedBusinessData) {
+            const parsedData = JSON.parse(savedBusinessData);
+            console.log('Loading saved business data from localStorage for company:', companyId, parsedData);
+            setBusinessData(prev => ({
+              ...prev,
+              ...parsedData,
+              // Don't override company data that comes from authentication
+              companyName: company?.name || parsedData.companyName || '',
+              businessSector: company?.business_sector || parsedData.businessSector || '',
+              primaryEmirate: company?.main_location || parsedData.primaryEmirate || '',
+              website: company?.website || parsedData.website || ''
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Error loading existing business data:', error);
+      }
+    };
+    
+    loadExistingBusinessData();
+  }, [company]);
+
+  // Save business data to localStorage whenever it changes
+  useEffect(() => {
+    // Only save if there's meaningful data beyond the initial values
+    const hasValidData = businessData.companySize !== '' || 
+                        businessData.registrationNumber !== '' ||
+                        businessData.contactPerson !== '' ||
+                        businessData.contactEmail !== '' ||
+                        businessData.contactPhone !== '';
+    
+    if (hasValidData) {
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const companyId = currentUser.company_id;
+      if (companyId) {
+        localStorage.setItem(`onboarding_business_data_${companyId}`, JSON.stringify(businessData));
+        console.log('Saved business data to localStorage for company:', companyId, businessData);
+      }
+    }
+  }, [businessData]);
   const [locationData, setLocationData] = useState<LocationData[]>([]);
 
   const steps = [
-    { id: 'business', title: 'Business Information', icon: '🏢', description: 'Company details & sector' },
+    { id: 'business', title: 'Additional Information', icon: '🏢', description: 'Company size & details' },
     { id: 'locations', title: 'Locations & Facilities', icon: '📍', description: 'Sites & infrastructure' },
     { id: 'esg-scoping', title: 'ESG Assessment', icon: '🌱', description: 'Sustainability scoping' },
     { id: 'complete', title: 'Complete Setup', icon: '✅', description: 'Review & finalize' }
@@ -58,9 +123,38 @@ const OnboardingWizard: React.FC = () => {
     setBusinessData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleLocationDataComplete = (locations: LocationData[]) => {
+  const handleLocationDataComplete = async (locations: LocationData[]) => {
     console.log('Locations completed:', locations);
-    // Save locations to storage
+    
+    try {
+      // Save locations to backend
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const companyId = currentUser.company_id;
+      
+      if (companyId) {
+        console.log('Saving locations to backend for company:', companyId);
+        
+        const response = await fetch(`http://localhost:8000/api/companies/${companyId}/locations`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify(locations)
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          console.log('Locations saved to backend successfully:', result);
+        } else {
+          console.error('Failed to save locations to backend:', response.status);
+        }
+      }
+    } catch (error) {
+      console.error('Error saving locations to backend:', error);
+    }
+    
+    // Save locations to legacy storage for compatibility
     locationStorage.setLocations(locations);
     setLocationData(locations);
     setCurrentStep(2); // Move to ESG Scoping
@@ -72,10 +166,7 @@ const OnboardingWizard: React.FC = () => {
   };
 
   const validateBusinessStep = (): boolean => {
-    return businessData.companyName.trim() !== '' && 
-           businessData.businessSector !== '' &&
-           businessData.companySize !== '' &&
-           businessData.primaryEmirate !== '';
+    return businessData.companySize !== '';
   };
 
   const handleNext = () => {
@@ -228,7 +319,8 @@ const OnboardingWizard: React.FC = () => {
       border: '1px solid #4b5563',
       borderRadius: '0.5rem',
       color: 'white',
-      fontSize: '1rem'
+      fontSize: '1rem',
+      boxSizing: 'border-box'
     },
     select: {
       width: '100%',
@@ -237,7 +329,8 @@ const OnboardingWizard: React.FC = () => {
       border: '1px solid #4b5563',
       borderRadius: '0.5rem',
       color: 'white',
-      fontSize: '1rem'
+      fontSize: '1rem',
+      boxSizing: 'border-box'
     },
     navigationButtons: {
       display: 'flex',
@@ -317,38 +410,51 @@ const OnboardingWizard: React.FC = () => {
   const renderBusinessInfoStep = () => (
     <div style={styles.card}>
       <h2 style={{fontSize: '2rem', fontWeight: 'bold', marginBottom: '1rem', textAlign: 'center'}}>
-        🏢 Business Information
+        🏢 Additional Information
       </h2>
       <p style={{textAlign: 'center', color: '#9ca3af', marginBottom: '2rem'}}>
-        Tell us about your company to customize your ESG assessment
+        Complete your company profile with additional details
       </p>
-
+      
+      {/* Display existing company information */}
+      <div style={{
+        backgroundColor: '#374151',
+        padding: '1.5rem',
+        borderRadius: '0.5rem',
+        marginBottom: '2rem',
+        border: '1px solid #4b5563',
+        gridColumn: '1 / -1'
+      }}>
+        <h3 style={{fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem', color: '#10b981'}}>
+          ✅ Company Information (Already Provided)
+        </h3>
+        <div style={styles.formGrid}>
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Company Name</label>
+            <div style={{
+              ...styles.input,
+              backgroundColor: '#4b5563',
+              color: '#d1d5db',
+              cursor: 'not-allowed'
+            }}>
+              {businessData.companyName}
+            </div>
+          </div>
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Business Sector</label>
+            <div style={{
+              ...styles.input,
+              backgroundColor: '#4b5563',
+              color: '#d1d5db',
+              cursor: 'not-allowed'
+            }}>
+              {businessData.businessSector}
+            </div>
+          </div>
+        </div>
+      </div>
+      
       <div style={styles.formGrid}>
-        <div style={styles.formGroup}>
-          <label style={styles.label}>Company Name *</label>
-          <input
-            type="text"
-            value={businessData.companyName}
-            onChange={(e) => handleBusinessDataChange('companyName', e.target.value)}
-            placeholder="Enter your company name"
-            style={styles.input}
-          />
-        </div>
-
-        <div style={styles.formGroup}>
-          <label style={styles.label}>Business Sector *</label>
-          <select
-            value={businessData.businessSector}
-            onChange={(e) => handleBusinessDataChange('businessSector', e.target.value)}
-            style={styles.select}
-          >
-            <option value="">Select your sector</option>
-            {businessSectors.map(sector => (
-              <option key={sector} value={sector}>{sector}</option>
-            ))}
-          </select>
-        </div>
-
         <div style={styles.formGroup}>
           <label style={styles.label}>Company Size *</label>
           <select
@@ -359,20 +465,6 @@ const OnboardingWizard: React.FC = () => {
             <option value="">Select company size</option>
             {companySizes.map(size => (
               <option key={size} value={size}>{size}</option>
-            ))}
-          </select>
-        </div>
-
-        <div style={styles.formGroup}>
-          <label style={styles.label}>Primary Emirate *</label>
-          <select
-            value={businessData.primaryEmirate}
-            onChange={(e) => handleBusinessDataChange('primaryEmirate', e.target.value)}
-            style={styles.select}
-          >
-            <option value="">Select emirate</option>
-            {emirates.map(emirate => (
-              <option key={emirate} value={emirate}>{emirate}</option>
             ))}
           </select>
         </div>
@@ -437,7 +529,11 @@ const OnboardingWizard: React.FC = () => {
 
   const renderCompletionStep = () => {
     const locationStats = locationStorage.getLocationStats();
-    const totalTasks = JSON.parse(localStorage.getItem('assessmentResults') || '{}').totalTasksGenerated || 0;
+    // Get total tasks from user-specific assessment results
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const companyId = currentUser.company_id;
+    const assessmentKey = companyId ? `assessmentResults_${companyId}` : 'assessmentResults';
+    const totalTasks = JSON.parse(localStorage.getItem(assessmentKey) || '{}').totalTasksGenerated || 0;
 
     return (
       <div style={styles.completionCard}>
@@ -540,8 +636,8 @@ const OnboardingWizard: React.FC = () => {
       )}
       {currentStep === 2 && (
         <ESGScopingWizard
-          companyId="temp"
-          businessSector={businessData.businessSector}
+          companyId={company?.id || "temp"}
+          businessSector={company?.business_sector || businessData.businessSector}
           onComplete={handleESGComplete}
           onBack={handleBack}
         />

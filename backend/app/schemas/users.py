@@ -17,13 +17,12 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     """Schema for user creation."""
     password: str
-    role: Optional[str] = "contributor"
-    
-    # Company creation fields (for registration)
-    company_name: Optional[str] = None
-    main_location: Optional[str] = None
-    business_sector: Optional[BusinessSector] = None
-    company_description: Optional[str] = None
+    company_name: str
+    business_sector: BusinessSector
+    description: Optional[str] = None
+    website: Optional[str] = None
+    phone: Optional[str] = None
+    active_frameworks: Optional[str] = None
     
     @validator('password')
     def validate_password(cls, v):
@@ -31,12 +30,24 @@ class UserCreate(UserBase):
             raise ValueError('Password must be at least 8 characters long')
         return v
     
-    @validator('role')
-    def validate_role(cls, v):
-        allowed_roles = ["admin", "manager", "contributor"]
-        if v not in allowed_roles:
-            raise ValueError(f'Role must be one of: {allowed_roles}')
+    @validator('business_sector', pre=True)
+    def validate_business_sector(cls, v):
+        if isinstance(v, str):
+            # Convert uppercase enum names to lowercase values
+            sector_mapping = {
+                'HOSPITALITY': 'hospitality',
+                'CONSTRUCTION': 'construction', 
+                'REAL_ESTATE': 'real_estate',
+                'LOGISTICS': 'logistics',
+                'RETAIL': 'retail',
+                'MANUFACTURING': 'manufacturing',
+                'EDUCATION': 'education',
+                'HEALTH': 'health',
+                'OTHER': 'other'
+            }
+            return sector_mapping.get(v.upper(), v.lower())
         return v
+    
 
 
 class UserUpdate(BaseModel):
@@ -83,6 +94,14 @@ class Token(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str
+
+
+class AuthResponse(BaseModel):
+    """Schema for authentication responses."""
+    access_token: str
+    refresh_token: str
+    token_type: str
+    user: UserResponse
 
 
 class TokenData(BaseModel):

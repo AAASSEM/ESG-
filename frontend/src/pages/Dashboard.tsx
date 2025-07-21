@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { taskStorage } from '../services/taskStorage'
+import { useAuth } from '../contexts/AuthContext'
 
 const Dashboard = () => {
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('overview')
   const [progressStats, setProgressStats] = useState({
     overall: { completed: 0, total: 0, percentage: 0 },
@@ -10,6 +12,8 @@ const Dashboard = () => {
     governance: { completed: 0, total: 0, percentage: 0 },
     evidence: { uploaded: 0, required: 0, percentage: 0 }
   })
+  const [esgMetrics, setEsgMetrics] = useState(null)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     const loadProgressStats = () => {
@@ -32,12 +36,73 @@ const Dashboard = () => {
       window.removeEventListener('storage', handleTasksUpdated)
     }
   }, [])
+
+  // Fetch ESG metrics
+  useEffect(() => {
+    const fetchESGMetrics = async () => {
+      if (!user?.company_id) return
+      
+      setLoading(true)
+      try {
+        const { reportsAPI } = await import('../utils/api')
+        const response = await reportsAPI.getESGMetrics(user.company_id)
+        setEsgMetrics(response.data)
+        console.log('ESG metrics loaded for dashboard:', response.data)
+      } catch (error) {
+        console.error('Failed to fetch ESG metrics for dashboard:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchESGMetrics()
+  }, [user?.company_id])
   
   const esgScores = {
-    overallScore: progressStats.overall.percentage,
-    environmental: progressStats.environmental.percentage,
-    social: progressStats.social.percentage,
-    governance: progressStats.governance.percentage
+    overallScore: esgMetrics?.esg_scores?.overall ?? progressStats.overall.percentage,
+    environmental: esgMetrics?.esg_scores?.environmental ?? progressStats.environmental.percentage,
+    social: esgMetrics?.esg_scores?.social ?? progressStats.social.percentage,
+    governance: esgMetrics?.esg_scores?.governance ?? progressStats.governance.percentage
+  }
+
+  // Calculate dynamic stats from ESG metrics
+  const calculateComplianceRate = () => {
+    if (!esgMetrics?.summary) return 0
+    const { total_tasks, completed_tasks } = esgMetrics.summary
+    return total_tasks > 0 ? Math.round((completed_tasks / total_tasks) * 100) : 0
+  }
+
+  const getCarbonReduction = () => {
+    if (!esgMetrics?.carbon_footprint) return 'No Data'
+    
+    // Calculate reduction based on actual carbon performance vs sector baseline
+    const perEmployee = esgMetrics.carbon_footprint.emissions_per_employee
+    const sector = esgMetrics.sector
+    
+    // Sector baselines (tCO₂e per employee per year)
+    const baselines = {
+      'education': 3.5,
+      'hospitality': 4.2,
+      'manufacturing': 8.5,
+      'construction': 6.8,
+      'healthcare': 5.1,
+      'logistics': 7.2,
+      'retail': 3.8,
+      'professional_services': 2.9
+    }
+    
+    const baseline = baselines[sector] || 4.0 // Default baseline
+    
+    if (!perEmployee || perEmployee === 0) {
+      return 'No Data'
+    }
+    
+    // Calculate percentage difference from baseline
+    // Negative = better than baseline (reduction)
+    // Positive = worse than baseline (increase)
+    const reduction = Math.round(((baseline - perEmployee) / baseline) * 100)
+    
+    return reduction
   }
 
   const styles: { [key: string]: React.CSSProperties } = {
@@ -302,20 +367,37 @@ const Dashboard = () => {
         {/* Quick Stats */}
         <div style={styles.statsGrid}>
           <div style={styles.statCard}>
-            <div style={{...styles.statValue, color: '#10b981'}}>98%</div>
+            <div style={{...styles.statValue, color: '#10b981'}}>
+              {loading ? '...' : `${calculateComplianceRate()}%`}
+            </div>
             <div style={styles.statLabel}>Compliance Rate</div>
           </div>
           <div style={styles.statCard}>
-            <div style={{...styles.statValue, color: '#3b82f6'}}>15</div>
-            <div style={styles.statLabel}>Active Goals</div>
+            <div style={{...styles.statValue, color: '#3b82f6'}}>
+              {loading ? '...' : (esgMetrics?.summary?.frameworks_count || 0)}
+            </div>
+            <div style={styles.statLabel}>Active Frameworks</div>
           </div>
           <div style={styles.statCard}>
-            <div style={{...styles.statValue, color: '#a855f7'}}>24</div>
-            <div style={styles.statLabel}>Tasks This Week</div>
+            <div style={{...styles.statValue, color: '#a855f7'}}>
+              {loading ? '...' : (esgMetrics?.summary?.total_tasks || 0)}
+            </div>
+            <div style={styles.statLabel}>Total Tasks</div>
           </div>
           <div style={styles.statCard}>
-            <div style={{...styles.statValue, color: '#10b981'}}>-12%</div>
-            <div style={styles.statLabel}>Carbon Reduction</div>
+            <div style={{...styles.statValue, color: 
+              loading ? '#9ca3af' :
+              typeof getCarbonReduction() === 'number' ? 
+                (getCarbonReduction() > 0 ? '#10b981' : getCarbonReduction() < 0 ? '#f87171' : '#f59e0b') :
+              '#9ca3af'
+            }}>
+              {loading ? '...' : 
+               typeof getCarbonReduction() === 'number' ? 
+                 `${getCarbonReduction() > 0 ? '-' : '+'}${Math.abs(getCarbonReduction())}%` : 
+                 getCarbonReduction()
+              }
+            </div>
+            <div style={styles.statLabel}>Carbon vs Industry</div>
           </div>
         </div>
       </div>
@@ -528,29 +610,49 @@ const Dashboard = () => {
                   <div style={styles.metricTitle}>Carbon Emissions</div>
                   <div style={{fontSize: '2rem'}}>☁️</div>
                 </div>
-                <div style={{...styles.metricValue, color: '#10b981'}}>245 <span style={{fontSize: '1.5rem'}}>tCO₂e</span></div>
-                <div style={{...styles.metricChange, color: '#10b981'}}>↓ -12% this year</div>
-                <div style={{fontSize: '0.875rem', color: '#9ca3af'}}>Target: 200 tCO₂e by 2025</div>
+                <div style={{...styles.metricValue, color: '#10b981'}}>
+                  {loading ? '...' : (esgMetrics?.carbon_footprint?.total_annual?.toFixed(1) || 0)} 
+                  <span style={{fontSize: '1.5rem'}}> tCO₂e</span>
+                </div>
+                <div style={{...styles.metricChange, color: '#10b981'}}>
+                  {esgMetrics?.benchmark_comparison?.carbon_performance === 'efficient' ? '↓ Efficient' : 
+                   esgMetrics?.benchmark_comparison?.carbon_performance === 'moderate' ? '↔ Moderate' : '↑ Needs Improvement'}
+                </div>
+                <div style={{fontSize: '0.875rem', color: '#9ca3af'}}>
+                  Per employee: {esgMetrics?.carbon_footprint?.emissions_per_employee?.toFixed(2) || 0} tCO₂e
+                </div>
               </div>
               
               <div style={styles.metricCard}>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
-                  <div style={styles.metricTitle}>Energy Consumption</div>
+                  <div style={styles.metricTitle}>Energy Performance</div>
                   <div style={{fontSize: '2rem'}}>⚡</div>
                 </div>
-                <div style={{...styles.metricValue, color: '#10b981'}}>89,542 <span style={{fontSize: '1.5rem'}}>kWh</span></div>
-                <div style={{...styles.metricChange, color: '#10b981'}}>↓ -8% this month</div>
-                <div style={{fontSize: '0.875rem', color: '#9ca3af'}}>67% from renewable sources</div>
+                <div style={{...styles.metricValue, color: '#10b981'}}>
+                  {esgMetrics?.benchmark_comparison?.electricity_performance || 'No Data'}
+                </div>
+                <div style={{...styles.metricChange, color: '#10b981'}}>
+                  Scope 2: {esgMetrics?.carbon_footprint?.scope2?.toFixed(1) || 0} tCO₂e
+                </div>
+                <div style={{fontSize: '0.875rem', color: '#9ca3af'}}>
+                  Scope 1: {esgMetrics?.carbon_footprint?.scope1?.toFixed(1) || 0} tCO₂e
+                </div>
               </div>
               
               <div style={styles.metricCard}>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
-                  <div style={styles.metricTitle}>Water Usage</div>
+                  <div style={styles.metricTitle}>Water Performance</div>
                   <div style={{fontSize: '2rem'}}>💧</div>
                 </div>
-                <div style={{...styles.metricValue, color: '#10b981'}}>12,890 <span style={{fontSize: '1.5rem'}}>L</span></div>
-                <div style={{...styles.metricChange, color: '#10b981'}}>↓ -5% this month</div>
-                <div style={{fontSize: '0.875rem', color: '#9ca3af'}}>15% recycled water used</div>
+                <div style={{...styles.metricValue, color: '#10b981'}}>
+                  {esgMetrics?.benchmark_comparison?.water_performance || 'No Data'}
+                </div>
+                <div style={{...styles.metricChange, color: '#10b981'}}>
+                  Per sqm: {esgMetrics?.carbon_footprint?.emissions_per_sqm?.toFixed(3) || 0} tCO₂e
+                </div>
+                <div style={{fontSize: '0.875rem', color: '#9ca3af'}}>
+                  Overall ranking: {esgMetrics?.benchmark_comparison?.overall_ranking || 'No Data'}
+                </div>
               </div>
             </div>
           </div>

@@ -1,35 +1,35 @@
 """
-Audit log model for compliance and traceability.
+Audit log model for tracking user actions.
 """
-from sqlalchemy import Column, String, DateTime, ForeignKey, Text
-from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy import Column, String, Text, DateTime, JSON, ForeignKey
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-from uuid import uuid4
-
+from datetime import datetime
 from ..database import Base
 
 
 class AuditLog(Base):
-    """Audit log model for tracking all system activities."""
-    
+    """Audit log for tracking all user actions."""
     __tablename__ = "audit_logs"
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid4()))
-    user_id = Column(String, ForeignKey('users.id'), nullable=False)
+    # Use String ID instead of UUID for SQLite compatibility
+    id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     
     # Action details
-    action = Column(String, nullable=False)  # create, update, delete, upload, login, etc.
-    resource_type = Column(String, nullable=False)  # company, task, evidence, user, etc.
-    resource_id = Column(String, nullable=False)  # ID of the affected resource
+    action = Column(String, nullable=False)  # e.g., "user_login", "task_create"
+    resource_type = Column(String)  # e.g., "task", "company", "user"
+    resource_id = Column(String)  # ID of affected resource
     
-    # Additional details
-    details = Column(JSON, nullable=True)  # Additional context as JSON
-    ip_address = Column(String, nullable=True)
-    user_agent = Column(Text, nullable=True)
+    # Additional context
+    details = Column(JSON)  # Additional action details
+    ip_address = Column(String)
+    user_agent = Column(Text)
     
     # Timestamp
-    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships
     user = relationship("User", back_populates="audit_logs")
+    
+    def __repr__(self):
+        return f"<AuditLog(id={self.id}, action={self.action}, user_id={self.user_id})>"

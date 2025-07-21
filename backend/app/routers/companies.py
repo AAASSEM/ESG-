@@ -1,5 +1,5 @@
 """
-Company and location management router.
+Fixed routers/companies.py to match the actual Company model
 """
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -10,12 +10,9 @@ from ..database import get_db
 from ..schemas.company import (
     CompanyResponse, 
     CompanyUpdate, 
-    CompanyProfile,
-    LocationCreate, 
-    LocationResponse, 
-    LocationUpdate
+    CompanyProfile
 )
-from ..models import Company, Location, User, Task
+from ..models import Company, User, Task, TaskStatus
 from ..auth.dependencies import (
     get_current_user, 
     require_admin, 
@@ -27,6 +24,7 @@ router = APIRouter()
 
 
 @router.get("/me", response_model=CompanyProfile)
+@router.get("/current", response_model=CompanyProfile)  # Alternative endpoint
 async def get_my_company(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -48,71 +46,54 @@ async def get_my_company(
             select(func.count(User.id))
             .where(User.company_id == company.id)
         )
-        total_users = users_count.scalar()
+        total_users = users_count.scalar() or 0
         
-        locations_count = await db.execute(
-            select(func.count(Location.id))
-            .where(Location.company_id == company.id)
-        )
-        total_locations = locations_count.scalar()
-        
+        # Get task statistics
         tasks_count = await db.execute(
             select(func.count(Task.id))
             .where(Task.company_id == company.id)
         )
-        total_tasks = tasks_count.scalar()
+        total_tasks = tasks_count.scalar() or 0
         
         completed_tasks_count = await db.execute(
             select(func.count(Task.id))
             .where(
                 Task.company_id == company.id,
-                Task.status == 'completed'
+                Task.status == TaskStatus.COMPLETED
             )
         )
-        completed_tasks = completed_tasks_count.scalar()
+        completed_tasks = completed_tasks_count.scalar() or 0
         
-        # Get locations
-        locations_result = await db.execute(
-            select(Location)
-            .where(Location.company_id == company.id)
-            .order_by(Location.created_at)
-        )
-        locations = locations_result.scalars().all()
-        
+        # Calculate completion percentage
         completion_percentage = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+        
+        # Get location data from scoping_data if available
+        locations = []
+        if company.scoping_data and 'location_data' in company.scoping_data:
+            locations = company.scoping_data['location_data']
         
         return CompanyProfile(
             id=company.id,
             name=company.name,
             main_location=company.main_location,
             business_sector=company.business_sector,
-            description=company.description,
-            website=company.website,
-            phone=company.phone,
-            active_frameworks=company.active_frameworks,
+            esg_scoping_completed=company.esg_scoping_completed,
+            scoping_completed_at=company.scoping_completed_at,
             created_at=company.created_at,
+            updated_at=company.updated_at,
             total_users=total_users,
-            total_locations=total_locations,
+            total_locations=len(locations),
             total_tasks=total_tasks,
             completed_tasks=completed_tasks,
             completion_percentage=completion_percentage,
-            locations=[
-                LocationResponse(
-                    id=loc.id,
-                    company_id=loc.company_id,
-                    name=loc.name,
-                    location_type=loc.location_type,
-                    parent_location_id=loc.parent_location_id,
-                    address=loc.address,
-                    description=loc.description,
-                    created_at=loc.created_at,
-                    updated_at=loc.updated_at
-                ) for loc in locations
-            ]
+            locations=locations,
+            scoping_data=company.scoping_data
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @router.put("/me", response_model=CompanyResponse)
@@ -156,224 +137,92 @@ async def update_my_company(
             name=company.name,
             main_location=company.main_location,
             business_sector=company.business_sector,
-            description=company.description,
-            website=company.website,
-            phone=company.phone,
-            active_frameworks=company.active_frameworks,
+            esg_scoping_completed=company.esg_scoping_completed,
+            scoping_completed_at=company.scoping_completed_at,
             created_at=company.created_at,
             updated_at=company.updated_at
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
 
 
-@router.get("/locations", response_model=List[LocationResponse])
-async def get_company_locations(
+@router.post("/{company_id}/locations")
+async def save_locations(
+    company_id: str,
+    locations: List[dict],
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get all locations for current user's company."""
+    """Save location data to company's scoping_data."""
+    if current_user.company_id != company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
     try:
+        # Get company
         result = await db.execute(
-            select(Location)
-            .where(Location.company_id == current_user.company_id)
-            .order_by(Location.created_at)
+            select(Company).where(Company.id == company_id)
         )
-        locations = result.scalars().all()
+        company = result.scalar_one_or_none()
         
-        return [
-            LocationResponse(
-                id=loc.id,
-                company_id=loc.company_id,
-                name=loc.name,
-                location_type=loc.location_type,
-                parent_location_id=loc.parent_location_id,
-                address=loc.address,
-                description=loc.description,
-                created_at=loc.created_at,
-                updated_at=loc.updated_at
-            ) for loc in locations
-        ]
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
         
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/locations", response_model=LocationResponse)
-async def create_location(
-    location_data: LocationCreate,
-    request: Request,
-    current_user: User = Depends(require_manager),
-    db: AsyncSession = Depends(get_db)
-):
-    """Create a new location (Manager/Admin only)."""
-    try:
-        from uuid import uuid4
+        # Update scoping_data with locations
+        if not company.scoping_data:
+            company.scoping_data = {}
         
-        location = Location(
-            id=uuid4(),
-            company_id=current_user.company_id,
-            name=location_data.name,
-            location_type=location_data.location_type,
-            parent_location_id=location_data.parent_location_id,
-            address=location_data.address,
-            description=location_data.description
-        )
+        company.scoping_data['location_data'] = locations
         
-        db.add(location)
+        # Mark the column as modified to ensure SQLAlchemy saves it
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(company, "scoping_data")
+        
         await db.commit()
-        await db.refresh(location)
         
-        # Create audit log
-        await create_audit_log(
-            db=db,
-            user_id=current_user.id,
-            action="location_create",
-            resource_type="location",
-            resource_id=str(location.id),
-            details={
-                "name": location.name,
-                "location_type": location.location_type.value,
-                "parent_location_id": str(location.parent_location_id) if location.parent_location_id else None
-            },
-            ip_address=request.client.host if request.client else None
-        )
-        
-        return LocationResponse(
-            id=location.id,
-            company_id=location.company_id,
-            name=location.name,
-            location_type=location.location_type,
-            parent_location_id=location.parent_location_id,
-            address=location.address,
-            description=location.description,
-            created_at=location.created_at,
-            updated_at=location.updated_at
-        )
+        return {
+            "message": "Locations saved successfully",
+            "locations_count": len(locations),
+            "company_id": company_id,
+            "locations": locations
+        }
         
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to save locations: {str(e)}")
 
 
-@router.put("/locations/{location_id}", response_model=LocationResponse)
-async def update_location(
-    location_id: str,
-    location_update: LocationUpdate,
-    request: Request,
-    current_user: User = Depends(require_manager),
+@router.get("/{company_id}/locations")
+async def get_locations(
+    company_id: str,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Update a location (Manager/Admin only)."""
+    """Get location data from company's scoping_data."""
+    if current_user.company_id != company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
     try:
+        # Get company
         result = await db.execute(
-            select(Location)
-            .where(
-                Location.id == location_id,
-                Location.company_id == current_user.company_id
-            )
+            select(Company).where(Company.id == company_id)
         )
-        location = result.scalar_one_or_none()
+        company = result.scalar_one_or_none()
         
-        if not location:
-            raise HTTPException(status_code=404, detail="Location not found")
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
         
-        # Update fields
-        update_data = location_update.dict(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(location, field, value)
+        # Get locations from scoping_data
+        locations = []
+        if company.scoping_data and 'location_data' in company.scoping_data:
+            locations = company.scoping_data['location_data']
         
-        await db.commit()
-        await db.refresh(location)
-        
-        # Create audit log
-        await create_audit_log(
-            db=db,
-            user_id=current_user.id,
-            action="location_update",
-            resource_type="location",
-            resource_id=str(location.id),
-            details=update_data,
-            ip_address=request.client.host if request.client else None
-        )
-        
-        return LocationResponse(
-            id=location.id,
-            company_id=location.company_id,
-            name=location.name,
-            location_type=location.location_type,
-            parent_location_id=location.parent_location_id,
-            address=location.address,
-            description=location.description,
-            created_at=location.created_at,
-            updated_at=location.updated_at
-        )
+        return {
+            "locations": locations
+        }
         
     except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.delete("/locations/{location_id}")
-async def delete_location(
-    location_id: str,
-    request: Request,
-    current_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
-):
-    """Delete a location (Admin only)."""
-    try:
-        result = await db.execute(
-            select(Location)
-            .where(
-                Location.id == location_id,
-                Location.company_id == current_user.company_id
-            )
-        )
-        location = result.scalar_one_or_none()
-        
-        if not location:
-            raise HTTPException(status_code=404, detail="Location not found")
-        
-        # Check if location has sub-locations or tasks
-        sub_locations = await db.execute(
-            select(func.count(Location.id))
-            .where(Location.parent_location_id == location_id)
-        )
-        if sub_locations.scalar() > 0:
-            raise HTTPException(
-                status_code=400, 
-                detail="Cannot delete location with sub-locations"
-            )
-        
-        tasks_count = await db.execute(
-            select(func.count(Task.id))
-            .where(Task.location_id == location_id)
-        )
-        if tasks_count.scalar() > 0:
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot delete location with associated tasks"
-            )
-        
-        await db.delete(location)
-        await db.commit()
-        
-        # Create audit log
-        await create_audit_log(
-            db=db,
-            user_id=current_user.id,
-            action="location_delete",
-            resource_type="location",
-            resource_id=str(location.id),
-            details={"name": location.name},
-            ip_address=request.client.host if request.client else None
-        )
-        
-        return {"message": "Location deleted successfully"}
-        
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to get locations: {str(e)}")

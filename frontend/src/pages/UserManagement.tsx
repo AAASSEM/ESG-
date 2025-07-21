@@ -291,7 +291,8 @@ const UserManagement = () => {
       borderRadius: '0.5rem',
       color: 'white',
       fontSize: '0.875rem',
-      outline: 'none'
+      outline: 'none',
+      boxSizing: 'border-box'
     },
     addButton: {
       padding: '0.5rem 1rem',
@@ -487,7 +488,8 @@ const UserManagement = () => {
       color: 'white',
       fontSize: '0.875rem',
       outline: 'none',
-      marginBottom: '1rem'
+      marginBottom: '1rem',
+      boxSizing: 'border-box'
     },
     modalButtons: {
       display: 'flex',

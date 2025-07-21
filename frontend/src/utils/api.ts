@@ -137,4 +137,70 @@ export const companiesAPI = {
   },
 }
 
+// ESG Scoping API
+export const esgAPI = {
+  getSectors: () => {
+    return api.get('/api/esg/sectors')
+  },
+  
+  getSectorQuestions: (sector: string) => {
+    return api.get(`/api/esg/sectors/${sector}/questions`)
+  },
+  
+  completeScoping: (companyId: string, scopingData: {
+    sector: string
+    answers: Record<string, any>
+    preferences: Record<string, any>
+    location_data?: any[]
+  }) => {
+    return api.post(`/api/esg/scoping/${companyId}/complete`, scopingData)
+  },
+  
+  getScopingStatus: (companyId: string) => {
+    return api.get(`/api/esg/scoping/${companyId}/status`)
+  },
+
+  // Smart task regeneration endpoints
+  previewTaskChanges: (companyId: string, scopingData: {
+    sector: string
+    answers: Record<string, any>
+    preferences: Record<string, any>
+    location_data?: any[]
+  }) => {
+    return api.post(`/api/esg/scoping/${companyId}/preview`, scopingData)
+  },
+
+  updateTasksWithChanges: (companyId: string, scopingData: {
+    sector: string
+    answers: Record<string, any>
+    preferences: Record<string, any>
+    location_data?: any[]
+  }) => {
+    return api.post(`/api/esg/scoping/${companyId}/update`, scopingData)
+  },
+}
+
+// Reports API
+export const reportsAPI = {
+  getReportPreview: (companyId: string) => {
+    return api.get(`/api/reports/companies/${companyId}/report/preview`)
+  },
+  
+  generateESGReport: (companyId: string, includeEvidence: boolean = true) => {
+    return api.get(`/api/reports/companies/${companyId}/report/esg-pdf?include_evidence=${includeEvidence}`, {
+      responseType: 'blob'
+    })
+  },
+  
+  getSampleReport: () => {
+    return api.get('/api/reports/sample-report-pdf', {
+      responseType: 'blob'
+    })
+  },
+  
+  getESGMetrics: (companyId: string) => {
+    return api.get(`/api/reports/companies/${companyId}/esg-metrics`)
+  }
+}
+
 export default api

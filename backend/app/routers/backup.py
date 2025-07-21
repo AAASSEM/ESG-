@@ -8,7 +8,7 @@ import logging
 
 from ..auth.dependencies import get_admin_user
 from ..core.backup import BackupManager, DisasterRecoveryManager, backup_health_check
-from ..auth.models import User
+from ..models import User
 
 logger = logging.getLogger(__name__)
 

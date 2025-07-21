@@ -9,6 +9,7 @@ import logging
 
 from fastapi import Request, Response, HTTPException, status
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -355,14 +356,15 @@ async def content_security_middleware(request: Request, call_next: Callable) -> 
     return response
 
 
-class SecurityMiddleware:
+class SecurityMiddleware(BaseHTTPMiddleware):
     """Combined security middleware class."""
     
-    def __init__(self):
+    def __init__(self, app):
         """Initialize security middleware."""
+        super().__init__(app)
         self.rate_limiter = RateLimitManager()
     
-    async def __call__(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Apply all security measures."""
         # Apply middleware in order
         middlewares = [

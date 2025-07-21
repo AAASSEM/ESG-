@@ -42,24 +42,49 @@ class TaskGenerator:
         Returns:
             List of created Task objects
         """
+        print("\n" + "="*80)
+        print("🚀 [DEVELOPER DEBUG] TASK GENERATION STARTED")
+        print("="*80)
+        
         try:
             # Get company information
+            print(f"📋 Step 1: Fetching company data for ID: {company_id}")
             result = await db.execute(
                 select(Company).where(Company.id == company_id)
             )
             company = result.scalar_one_or_none()
             
             if not company:
+                print(f"❌ ERROR: Company not found with ID: {company_id}")
                 raise ValueError(f"Company not found: {company_id}")
             
+            print(f"✅ Company found:")
+            print(f"   • Name: {company.name}")
+            print(f"   • Sector: {company.business_sector}")
+            print(f"   • Location: {company.main_location}")
+            print(f"   • Description: {company.description or 'N/A'}")
+            
             # Parse ESG questions for company's sector
+            print(f"\n📚 Step 2: Loading ESG questions for sector '{company.business_sector}'")
             esg_questions = self.parser.parse_sector_content(company.business_sector)
             
             if not esg_questions:
+                print(f"⚠️  WARNING: No ESG questions found for sector: {company.business_sector}")
+                print(f"   Available sectors: {list(self.parser.content.keys()) if hasattr(self.parser, 'content') else 'Unknown'}")
                 logger.warning(f"No ESG questions found for sector: {company.business_sector}")
                 return []
             
+            print(f"✅ Found {len(esg_questions)} ESG questions for {company.business_sector}")
+            print(f"   Questions preview:")
+            for i, q in enumerate(esg_questions[:3]):  # Show first 3
+                print(f"   {i+1}. {q.text[:100]}{'...' if len(q.text) > 100 else ''}")
+                print(f"      Frameworks: {q.frameworks}")
+                print(f"      Category: {q.category}")
+            if len(esg_questions) > 3:
+                print(f"   ... and {len(esg_questions) - 3} more questions")
+            
             # Generate tasks from questions
+            print(f"\n🔧 Step 3: Converting questions to tasks")
             tasks = await self._create_tasks_from_questions(
                 db=db,
                 company_id=company_id,
@@ -68,10 +93,35 @@ class TaskGenerator:
                 esg_questions=esg_questions
             )
             
+            print(f"\n🎉 TASK GENERATION COMPLETED")
+            print(f"   • Total tasks generated: {len(tasks)}")
+            print(f"   • Company: {company.name}")
+            print(f"   • Sector: {company.business_sector}")
+            
+            # Summary by category and framework
+            categories = {}
+            frameworks = {}
+            for task in tasks:
+                cat = task.category.value if hasattr(task.category, 'value') else str(task.category)
+                categories[cat] = categories.get(cat, 0) + 1
+                
+                if hasattr(task, 'framework_tags') and task.framework_tags:
+                    fw_list = eval(task.framework_tags) if isinstance(task.framework_tags, str) else task.framework_tags
+                    for fw in fw_list:
+                        frameworks[fw] = frameworks.get(fw, 0) + 1
+            
+            print(f"   • Categories: {dict(categories)}")
+            print(f"   • Frameworks: {dict(frameworks)}")
+            print("="*80)
+            
             logger.info(f"Generated {len(tasks)} tasks for company {company_id}")
             return tasks
             
         except Exception as e:
+            print(f"❌ ERROR in task generation: {e}")
+            print(f"   Company ID: {company_id}")
+            print(f"   Error type: {type(e).__name__}")
+            print("="*80)
             logger.error(f"Error generating tasks for company {company_id}: {e}")
             raise
     
@@ -84,18 +134,25 @@ class TaskGenerator:
         esg_questions: List[ESGQuestion]
     ) -> List[Task]:
         """Create Task objects from ESG questions."""
+        print(f"\n🔨 [DEBUG] Creating tasks from {len(esg_questions)} questions")
         tasks = []
         
-        for question in esg_questions:
+        for i, question in enumerate(esg_questions, 1):
             try:
+                print(f"\n   📝 Processing Question {i}/{len(esg_questions)}")
+                print(f"      Text: {question.wizard_question[:80]}{'...' if len(question.wizard_question) > 80 else ''}")
+                print(f"      Category: {question.category}")
+                print(f"      Frameworks: {question.frameworks}")
+                
                 # Extract framework tags for "Collect Once, Use Many" logic
                 framework_tags = self._extract_framework_tags(question.frameworks)
+                print(f"      Extracted tags: {framework_tags}")
                 
                 # Generate due date (default: 30 days from now)
                 due_date = date.today() + timedelta(days=30)
                 
                 task = Task(
-                    id=uuid4(),
+                    id=str(uuid4()),
                     company_id=company_id,
                     location_id=location_id,
                     title=question.wizard_question,
@@ -110,17 +167,26 @@ class TaskGenerator:
                     created_at=datetime.utcnow()
                 )
                 
+                print(f"      ✅ Task created: {task.title[:50]}{'...' if len(task.title) > 50 else ''}")
+                print(f"         ID: {task.id}")
+                print(f"         Due: {due_date}")
+                print(f"         Status: {task.status}")
+                
                 db.add(task)
                 tasks.append(task)
                 
             except Exception as e:
+                print(f"      ❌ ERROR creating task from question: {e}")
                 logger.warning(f"Error creating task from question '{question.wizard_question}': {e}")
                 continue
         
+        print(f"\n💾 Saving {len(tasks)} tasks to database...")
         try:
             await db.commit()
+            print(f"   ✅ Successfully saved {len(tasks)} tasks to database")
             logger.info(f"Successfully saved {len(tasks)} tasks to database")
         except Exception as e:
+            print(f"   ❌ ERROR saving tasks: {e}")
             await db.rollback()
             logger.error(f"Error saving tasks to database: {e}")
             raise
@@ -326,7 +392,8 @@ class TaskGenerator:
         sector: str,
         answers: Dict[str, any],
         preferences: Dict[str, any],
-        company_id: str
+        company_id: str,
+        location_data: List[Dict] = None
     ) -> List[Dict]:
         """
         Generate tasks based on ESG scoping wizard results.
@@ -336,6 +403,7 @@ class TaskGenerator:
             answers: User answers from scoping wizard
             preferences: User preferences for task generation
             company_id: Company ID for task assignment
+            location_data: Company location and meter information
             
         Returns:
             List of task data dictionaries

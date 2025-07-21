@@ -12,7 +12,7 @@ from fastapi.routing import APIRoute
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from ..auth.dependencies import get_current_user, get_admin_user, get_current_user_optional
-from ..auth.models import User
+from ..models import User
 
 logger = logging.getLogger(__name__)
 

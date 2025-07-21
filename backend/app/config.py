@@ -10,8 +10,8 @@ class Settings(BaseSettings):
     """Application settings with environment variable support."""
     
     # Database
-    database_url: str = "sqlite:///./esg_platform.db"
-    database_url_async: str = "sqlite+aiosqlite:///./esg_platform.db"
+    database_url: str = "sqlite:///./data/esg_platform.db"
+    database_url_async: str = "sqlite+aiosqlite:///./data/esg_platform.db"
     
     # Security
     secret_key: str = "your-secret-key-change-in-production"

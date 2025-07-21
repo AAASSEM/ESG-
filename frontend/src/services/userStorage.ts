@@ -55,16 +55,46 @@ class UserStorageService {
 
   // Create default admin user
   private createDefaultAdmin(): User {
+    // Try to get the current user from localStorage (from AuthContext)
+    const storedUser = localStorage.getItem('current_user');
+    const authToken = localStorage.getItem('token');
+    
+    let userName = 'System Administrator';
+    let userEmail = 'admin@company.ae';
+    let userId = 'admin_default';
+    
+    // If we have auth token, try to get user info from any available source
+    if (authToken) {
+      try {
+        // Try to parse stored user data from auth context
+        if (storedUser) {
+          const userData = JSON.parse(storedUser);
+          if (userData.full_name) userName = userData.full_name;
+          if (userData.email) userEmail = userData.email;
+          if (userData.id) userId = userData.id;
+        }
+      } catch (error) {
+        // If parsing fails, use defaults
+        console.warn('Could not parse stored user data, using defaults');
+      }
+    }
+    
+    // Generate avatar from name
+    const nameParts = userName.split(' ');
+    const avatar = nameParts.length >= 2 
+      ? `${nameParts[0][0]}${nameParts[1][0]}`.toUpperCase()
+      : userName.substring(0, 2).toUpperCase();
+
     return {
-      id: 'admin_default',
-      name: 'System Administrator',
-      email: 'admin@company.ae',
+      id: userId,
+      name: userName,
+      email: userEmail,
       role: 'admin',
       status: 'active',
-      avatar: 'SA',
+      avatar: avatar,
       created_at: new Date().toISOString(),
       last_login: new Date().toISOString(),
-      department: 'IT',
+      department: 'Management',
       permissions: {
         dashboard_access: true,
         data_entry: true,
@@ -231,6 +261,34 @@ class UserStorageService {
         details: { timestamp: new Date().toISOString() }
       });
     }
+  }
+
+  // Sync with AuthContext user data
+  syncWithAuthUser(authUser: { id: string, email: string, full_name: string, role?: string }): void {
+    // Clear all existing data first to prevent contamination between accounts
+    this.clearAllData();
+    
+    // Create a fresh user based on auth data
+    const newUser: User = {
+      id: authUser.id,
+      name: authUser.full_name,
+      email: authUser.email,
+      role: (authUser.role as 'admin' | 'manager' | 'contributor' | 'viewer') || 'admin',
+      status: 'active',
+      avatar: authUser.full_name.split(' ').length >= 2 
+        ? `${authUser.full_name.split(' ')[0][0]}${authUser.full_name.split(' ')[1][0]}`.toUpperCase()
+        : authUser.full_name.substring(0, 2).toUpperCase(),
+      created_at: new Date().toISOString(),
+      last_login: new Date().toISOString(),
+      department: 'Management',
+      permissions: this.getPermissionsByRole((authUser.role as 'admin' | 'manager' | 'contributor' | 'viewer') || 'admin')
+    };
+    
+    // Save only the new user
+    this.saveUsers([newUser]);
+    
+    // Set as current user
+    localStorage.setItem(this.currentUserKey, JSON.stringify(newUser));
   }
 
   // Get current user

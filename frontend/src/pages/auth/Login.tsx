@@ -95,7 +95,8 @@ const Login = () => {
       color: 'white',
       fontSize: '1rem',
       outline: 'none',
-      transition: 'border-color 0.2s ease'
+      transition: 'border-color 0.2s ease',
+      boxSizing: 'border-box'
     },
     inputFocus: {
       borderColor: '#10b981'

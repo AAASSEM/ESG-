@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ChevronRightIcon, ChevronLeftIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import api from '../../utils/api';
+import api, { esgAPI } from '../../utils/api';
 import { taskStorage } from '../../services/taskStorage';
 
 interface ESGQuestion {
@@ -62,6 +62,78 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
   });
   const queryClient = useQueryClient();
 
+  // Load existing ESG scoping answers when component mounts
+  useEffect(() => {
+    const loadExistingAnswers = async () => {
+      try {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        const companyId = currentUser.company_id;
+        
+        if (companyId) {
+          console.log('Loading existing ESG scoping data for company:', companyId);
+          
+          // Try to get existing scoping status
+          const response = await fetch(`http://localhost:8000/api/esg/scoping/${companyId}/status`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+          });
+          
+          if (response.ok) {
+            const scopingStatus = await response.json();
+            console.log('Existing scoping status:', scopingStatus);
+            
+            // If scoping is completed, load the saved answers from backend
+            if (scopingStatus.scoping_completed && scopingStatus.saved_answers) {
+              console.log('Loading saved answers from backend:', scopingStatus.saved_answers);
+              setAnswers(prevAnswers => ({
+                ...prevAnswers,
+                ...scopingStatus.saved_answers
+              }));
+              
+              // Also update preferences if available
+              if (scopingStatus.preferences) {
+                setPreferences(scopingStatus.preferences);
+              }
+            } else {
+              // Fallback to localStorage if backend doesn't have answers
+              const savedAnswers = localStorage.getItem(`esg_scoping_answers_${companyId}`);
+              if (savedAnswers) {
+                const parsedAnswers = JSON.parse(savedAnswers);
+                console.log('Loading saved answers from localStorage fallback:', parsedAnswers);
+                setAnswers(prevAnswers => ({
+                  ...prevAnswers,
+                  ...parsedAnswers
+                }));
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading existing ESG scoping data:', error);
+      }
+    };
+    
+    loadExistingAnswers();
+  }, []);
+
+  // Save answers to localStorage whenever they change
+  useEffect(() => {
+    // Only save ESG-related answers, not the default test data
+    const esgAnswers = { ...answers };
+    delete esgAnswers[1]; // Remove company name
+    delete esgAnswers[2]; // Remove employee count
+    
+    if (Object.keys(esgAnswers).length > 0) {
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const companyId = currentUser.company_id;
+      if (companyId) {
+        localStorage.setItem(`esg_scoping_answers_${companyId}`, JSON.stringify(esgAnswers));
+        console.log('Saved ESG answers to localStorage for company:', companyId, esgAnswers);
+      }
+    }
+  }, [answers]);
+
   // Comprehensive sector-specific ESG questions
   const getSectorQuestions = (sector: string) => {
 
@@ -70,22 +142,11 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
         return {
           environmental: [
             {
-              id: 10,
-              question: 'Do you have a designated person responsible for sustainability efforts?',
-              rationale: 'Dedicated leadership ensures ESG program effectiveness',
-              frameworks: 'DST Carbon Calculator, Green Key 1.1',
-              data_source: 'Job descriptions for sustainability roles',
-              category: 'environmental',
-              sector: sector,
-              required: true,
-              type: 'yes_no'
-            },
-            {
               id: 11,
-              question: 'Do you track monthly electricity consumption from DEWA in kWh?',
-              rationale: 'Energy tracking is fundamental for carbon footprint calculation',
-              frameworks: 'DST Carbon Calculator, Green Key 7.1',
-              data_source: 'Monthly utility bills (electricity, water, district cooling)',
+              question: 'Do you track your total monthly electricity consumption from the public grid (e.g., DEWA) in kilowatt-hours (kWh)?',
+              rationale: 'Scope 2 Emissions',
+              frameworks: 'DST Carbon Calculator: Mandatory Input, Green Key: 7.1 Monthly energy registration (I)',
+              data_source: 'Monthly utility bills',
               category: 'environmental',
               sector: sector,
               required: true,
@@ -93,10 +154,10 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
             },
             {
               id: 12,
-              question: 'Do you measure waste sent to landfill each month?',
-              rationale: 'Waste tracking is required for environmental compliance',
-              frameworks: 'DST Carbon Calculator, Green Key 5.1',
-              data_source: 'Waste contractor invoices/reports',
+              question: 'Do you use any fuel (like diesel or petrol) for on-site power generators?',
+              rationale: 'Scope 1 Emissions',
+              frameworks: 'DST Carbon Calculator: Mandatory Input (Petrol, Diesel)',
+              data_source: 'Fuel purchase receipts/logs',
               category: 'environmental',
               sector: sector,
               required: true,
@@ -104,21 +165,21 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
             },
             {
               id: 13,
-              question: 'Do you use bulk dispensers for toiletries in guest bathrooms?',
-              rationale: 'Reduces single-use plastic consumption',
-              frameworks: 'Green Key 5.2',
-              data_source: 'Photos of equipment/facilities',
+              question: 'Do you use district cooling services?',
+              rationale: 'Scope 2 Emissions',
+              frameworks: 'DST Carbon Calculator: Mandatory Input',
+              data_source: 'Monthly district cooling bills',
               category: 'environmental',
               sector: sector,
-              required: false,
+              required: true,
               type: 'yes_no'
             },
             {
               id: 14,
-              question: 'Are at least 75% of your light bulbs energy-efficient models (LED)?',
-              rationale: 'LED lighting significantly reduces energy consumption',
-              frameworks: 'DST Mandatory, Green Key 7.2',
-              data_source: 'Equipment specifications (LED lighting, generators)',
+              question: 'Do you use Liquefied Petroleum Gas (LPG) for cooking or heating?',
+              rationale: 'Scope 1 Emissions',
+              frameworks: 'DST Carbon Calculator: Mandatory Input',
+              data_source: 'LPG purchase invoices/logs',
               category: 'environmental',
               sector: sector,
               required: true,
@@ -126,47 +187,102 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
             },
             {
               id: 15,
-              question: 'Do you track total monthly water consumption in cubic meters?',
-              rationale: 'Water conservation is critical for sustainability',
-              frameworks: 'DST Carbon Calculator, Green Key 8.1',
-              data_source: 'Monthly utility bills (electricity, water, district cooling)',
+              question: 'Are at least 75% of your light bulbs energy-efficient models (like LED)?',
+              rationale: 'Energy Efficiency',
+              frameworks: 'Green Key: 7.3 Energy-efficient bulbs (I), DST: 2.1 Energy efficiency plan',
+              data_source: 'Purchase invoices, lighting inventory',
               category: 'environmental',
               sector: sector,
               required: true,
+              type: 'yes_no'
+            },
+            {
+              id: 16,
+              question: 'Do you track your total monthly water consumption in cubic meters (m³)?',
+              rationale: 'Water Consumption',
+              frameworks: 'DST Carbon Calculator: Mandatory Input, Green Key: 4.1 Monthly water registration (I)',
+              data_source: 'Monthly water utility bills',
+              category: 'environmental',
+              sector: sector,
+              required: true,
+              type: 'yes_no'
+            },
+            {
+              id: 17,
+              question: 'Do the showers in your guest rooms have a flow rate of 9 litres per minute or less?',
+              rationale: 'Water Efficiency',
+              frameworks: 'Green Key: 4.4 Shower water flow (I), DST: 3.1 Water conservation plan',
+              data_source: 'Technical specifications for showerheads',
+              category: 'environmental',
+              sector: sector,
+              required: true,
+              type: 'yes_no'
+            },
+            {
+              id: 18,
+              question: 'Do you measure the total amount of waste sent to landfill each month (in kg or tonnes)?',
+              rationale: 'Waste to Landfill',
+              frameworks: 'DST Carbon Calculator: Mandatory Input',
+              data_source: 'Waste contractor invoices/reports',
+              category: 'environmental',
+              sector: sector,
+              required: true,
+              type: 'yes_no'
+            },
+            {
+              id: 19,
+              question: 'Do you separate waste for recycling (e.g., paper, plastic, glass) and track the amounts recycled?',
+              rationale: 'Recycling Rate',
+              frameworks: 'DST Carbon Calculator: Mandatory Input, Green Key: 6.1 Waste separation (I)',
+              data_source: 'Waste contractor invoices/reports',
+              category: 'environmental',
+              sector: sector,
+              required: true,
+              type: 'yes_no'
+            },
+            {
+              id: 20,
+              question: 'Do you use bulk, refillable dispensers for toiletries (soap, shampoo) in guest bathrooms?',
+              rationale: 'Plastic Waste Reduction',
+              frameworks: 'Green Key: 6.11 Toiletries in dispensers (G), DST: 4.2 Reduce waste from toiletries',
+              data_source: 'Photos of dispensers in bathrooms',
+              category: 'environmental',
+              sector: sector,
+              required: false,
               type: 'yes_no'
             }
           ],
           social: [
             {
-              id: 20,
-              question: 'Do you provide regular training for all staff on sustainability goals?',
-              rationale: 'Employee awareness is crucial for ESG program success',
-              frameworks: 'DST Mandatory, Green Key 2.1',
-              data_source: 'Training records and materials',
+              id: 25,
+              question: 'Do you have a program that encourages guests to reuse their towels and linens?',
+              rationale: 'Guest Engagement',
+              frameworks: 'DST: 3.2 Reuse guest towels/linens, Green Key: 5.1 & 5.2 Guest information (I)',
+              data_source: 'Photos of in-room signage',
               category: 'social',
               sector: sector,
               required: true,
               type: 'yes_no'
             },
             {
-              id: 21,
-              question: 'Do you have a program encouraging guests to reuse towels and linens?',
-              rationale: 'Guest engagement reduces environmental impact',
-              frameworks: 'Green Key 8.2, DST Optional',
-              data_source: 'Photos of equipment/facilities',
+              id: 26,
+              question: 'Do you provide regular training for all staff on your sustainability goals and their specific roles?',
+              rationale: 'Employee Engagement',
+              frameworks: 'DST: 1.4 Train employees, Green Key: 2.1 Staff training (I)',
+              data_source: 'Training records, materials',
               category: 'social',
               sector: sector,
-              required: false,
+              required: true,
               type: 'yes_no'
             }
           ],
           governance: [
             {
               id: 30,
-              question: 'Do you have a written sustainability policy signed by senior management?',
-              rationale: 'Formal policies demonstrate organizational commitment',
-              frameworks: 'DST Mandatory, Green Key 1.2',
-              data_source: 'Signed sustainability policy documents',
+              question: 'Do you have a designated person or team responsible for your hotel\'s sustainability efforts?',
+              rationale: 'Management Structure',
+              frameworks: 'Green Key: 1.1 Environmental Manager (I), DST: 1.3 Establish a committee',
+              data_source: 'Job description, Committee meeting minutes',
               category: 'governance',
               sector: sector,
               required: true,
@@ -174,13 +290,24 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
             },
             {
               id: 31,
-              question: 'Do you have a policy to give preference to local, organic, or fair-trade suppliers?',
-              rationale: 'Sustainable procurement supports local economy',
-              frameworks: 'Green Key 4.1, DST Optional',
-              data_source: 'Purchasing policies',
+              question: 'Do you have a written sustainability policy signed by senior management?',
+              rationale: 'Formal Commitment',
+              frameworks: 'Green Key: 1.2 Sustainability Policy (I), DST: 1.3 (Implied foundation for committee)',
+              data_source: 'Signed policy document',
               category: 'governance',
               sector: sector,
-              required: false,
+              required: true,
+              type: 'yes_no'
+            },
+            {
+              id: 32,
+              question: 'Do you have a policy to give preference to local, organic, or fair-trade suppliers?',
+              rationale: 'Sustainable Procurement',
+              frameworks: 'DST: 6.1 Sustainable purchasing plan, Green Key: 8.1 Purchase from sustainable categories (I)',
+              data_source: 'Purchasing policy, sample invoices',
+              category: 'governance',
+              sector: sector,
+              required: true,
               type: 'yes_no'
             }
           ]
@@ -191,10 +318,10 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
           environmental: [
             {
               id: 40,
-              question: 'Are you pursuing green building certification (Al Sa\'fat, Estidama, LEED)?',
-              rationale: 'Green building certification is mandatory for Dubai/Abu Dhabi projects',
-              frameworks: 'Al Sa\'fat Mandatory Credits, Estidama Pearl Rating',
-              data_source: 'Green building certification documents',
+              question: 'Are you pursuing a green building certification for this project (e.g., Al Sa\'fat, Estidama, LEED)?',
+              rationale: 'Sustainable Design',
+              frameworks: 'Al Sa\'fat: Mandatory for all new Dubai buildings, Estidama: Mandatory for all new Abu Dhabi buildings, LEED: Voluntary international standard',
+              data_source: 'Project design brief, registration with certification body',
               category: 'environmental',
               sector: sector,
               required: true,
@@ -202,10 +329,10 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
             },
             {
               id: 41,
-              question: 'Have you conducted an Environmental Impact Assessment (EIA)?',
-              rationale: 'EIA is required for major construction projects',
-              frameworks: 'Dubai Municipality Requirements, Federal EIA Law',
-              data_source: 'Environmental Impact Assessment (EIA) reports',
+              question: 'Have you conducted an Environmental Impact Assessment (EIA) for this project?',
+              rationale: 'Risk Assessment',
+              frameworks: 'Dubai Municipality: Required for projects with potential environmental impact, JAFZA: Required for projects in the free zone',
+              data_source: 'EIA Report',
               category: 'environmental',
               sector: sector,
               required: true,
@@ -213,10 +340,10 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
             },
             {
               id: 42,
-              question: 'Do you have a Construction and Demolition (C&D) Waste Management Plan?',
-              rationale: 'Waste management planning is mandatory for construction',
-              frameworks: 'Al Sa\'fat Mandatory Credits, Dubai Municipality Requirements',
-              data_source: 'C&D Waste Management Plan documents',
+              question: 'Does your building design incorporate features to reduce energy use, such as high-performance insulation or window glazing?',
+              rationale: 'Passive Design & Energy Efficiency',
+              frameworks: 'Al Sa\'fat / Dubai Regulations: Mandates high-performance insulation and lighting, Estidama (Resourceful Energy): Targets energy conservation',
+              data_source: 'Building design specifications, material data sheets',
               category: 'environmental',
               sector: sector,
               required: true,
@@ -224,21 +351,21 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
             },
             {
               id: 43,
-              question: 'Do you segregate construction waste on-site for recycling?',
-              rationale: 'Waste segregation reduces landfill impact',
-              frameworks: 'Al Sa\'fat Mandatory Credits, Dubai Municipality Requirements',
-              data_source: 'Photos of segregation areas',
+              question: 'Does the project plan include installing on-site renewable energy, like solar panels?',
+              rationale: 'Renewable Energy Generation',
+              frameworks: 'Dubai Clean Energy Strategy 2050: Aims for 75% clean energy, Al Sa\'fat / Estidama: Provide credits for renewable energy',
+              data_source: 'Project plans, supplier contracts',
               category: 'environmental',
               sector: sector,
-              required: true,
+              required: false,
               type: 'yes_no'
             },
             {
               id: 44,
-              question: 'Does your building design incorporate energy-reducing features?',
-              rationale: 'Energy-efficient design reduces operational carbon footprint',
-              frameworks: 'Al Sa\'fat Mandatory Credits, Estidama',
-              data_source: 'Building design specifications, MEP drawings',
+              question: 'Do you have a Construction and Demolition (C&D) Waste Management Plan in place?',
+              rationale: 'Waste Management',
+              frameworks: 'Federal Law No. 12 of 2018: Mandates waste management, Al Sa\'fat / Estidama: Mandatory credits for C&D waste management',
+              data_source: 'C&D Waste Management Plan document',
               category: 'environmental',
               sector: sector,
               required: true,
@@ -246,23 +373,45 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
             },
             {
               id: 45,
-              question: 'Does the project plan include installing on-site renewable energy?',
-              rationale: 'Renewable energy reduces grid dependency and emissions',
-              frameworks: 'Al Sa\'fat Optional Credits, Dubai Clean Energy Strategy',
-              data_source: 'Solar panel specifications, renewable energy plans',
+              question: 'Do you segregate construction waste on-site for recycling (e.g., concrete, steel, wood)?',
+              rationale: 'Waste Diversion',
+              frameworks: 'Al Sa\'fat / Estidama: Credits for diverting waste from landfill, Dubai Municipality: Requires waste segregation',
+              data_source: 'Waste transfer notes from recycling facilities',
+              category: 'environmental',
+              sector: sector,
+              required: true,
+              type: 'yes_no'
+            },
+            {
+              id: 46,
+              question: 'Do you use locally sourced or recycled materials in your construction?',
+              rationale: 'Sustainable Materials',
+              frameworks: 'Al Sa\'fat / Estidama (Stewarding Materials): Credits for using local and recycled content',
+              data_source: 'Material procurement records, supplier certificates',
               category: 'environmental',
               sector: sector,
               required: false,
+              type: 'yes_no'
+            },
+            {
+              id: 47,
+              question: 'Do you have measures to control dust and air pollution from the construction site?',
+              rationale: 'Air Quality',
+              frameworks: 'Dubai Municipality: Requires air quality monitoring and control',
+              data_source: 'Air quality monitoring plan/reports',
+              category: 'environmental',
+              sector: sector,
+              required: true,
               type: 'yes_no'
             }
           ],
           social: [
             {
               id: 50,
-              question: 'Do you have measures to control dust and air pollution?',
-              rationale: 'Air quality protection is essential for community health',
-              frameworks: 'Dubai Municipality Requirements, Federal Environmental Law',
-              data_source: 'Monitoring reports',
+              question: 'Does the building have separate meters to track electricity and water consumption for different areas (e.g., common areas, individual units)?',
+              rationale: 'Sub-metering & Monitoring',
+              frameworks: 'Al Sa\'fat / Estidama: Credits for energy and water metering',
+              data_source: 'Building management system (BMS) specifications',
               category: 'social',
               sector: sector,
               required: true,
@@ -270,45 +419,23 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
             },
             {
               id: 51,
-              question: 'Are water-efficient fixtures installed in the building?',
-              rationale: 'Water conservation is critical for sustainable development',
-              frameworks: 'Al Sa\'fat Water Credits, Estidama',
-              data_source: 'Fixture specifications, water efficiency certificates',
+              question: 'Are water-efficient fixtures (low-flow taps, toilets) installed in the building?',
+              rationale: 'Water Conservation',
+              frameworks: 'Al Sa\'fat / Dubai Regulations: Mandates water-efficient fixtures, Estidama (Precious Water): Requires reduction in water demand',
+              data_source: 'Fixture specification sheets',
               category: 'social',
               sector: sector,
               required: true,
-              type: 'yes_no'
-            },
-            {
-              id: 52,
-              question: 'Does the building have separate meters for different areas?',
-              rationale: 'Sub-metering enables efficient resource management',
-              frameworks: 'Al Sa\'fat Optional Credits, Green Building Guidelines',
-              data_source: 'Metering plans, building management system setup',
-              category: 'social',
-              sector: sector,
-              required: false,
               type: 'yes_no'
             }
           ],
           governance: [
             {
               id: 60,
-              question: 'Do you use locally sourced or recycled materials in construction?',
-              rationale: 'Local sourcing supports sustainability and economy',
-              frameworks: 'Al Sa\'fat Optional Credits, Estidama',
-              data_source: 'Material procurement records',
-              category: 'governance',
-              sector: sector,
-              required: false,
-              type: 'yes_no'
-            },
-            {
-              id: 61,
-              question: 'Does the building have dedicated recycling bins for occupants?',
-              rationale: 'Waste infrastructure supports sustainable behaviors',
-              frameworks: 'Al Sa\'fat Optional Credits, Dubai Municipality Guidelines',
-              data_source: 'Photos of recycling facilities, waste management plan',
+              question: 'Does the building have dedicated recycling bins for tenants/occupants?',
+              rationale: 'Occupant Waste Management',
+              frameworks: 'Al Sa\'fat / Estidama: Credits for operational waste management',
+              data_source: 'Photos of recycling facilities',
               category: 'governance',
               sector: sector,
               required: false,
@@ -322,10 +449,10 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
           environmental: [
             {
               id: 70,
-              question: 'Do you have a certified Environmental Management System (ISO 14001)?',
-              rationale: 'ISO 14001 is the international standard for environmental management',
-              frameworks: 'ISO 14001 Environmental Management, Federal Energy Management Regulation',
-              data_source: 'ISO 14001 certificates, EMS documentation',
+              question: 'Do you have a certified Environmental Management System, such as ISO 14001?',
+              rationale: 'Formalized System',
+              frameworks: 'ISO 14001: A voluntary but widely recognized standard for EMS',
+              data_source: 'ISO 14001 Certificate',
               category: 'environmental',
               sector: sector,
               required: true,
@@ -333,10 +460,10 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
             },
             {
               id: 71,
-              question: 'Have you conducted an Environmental Impact Assessment for your facility?',
-              rationale: 'EIA is required for industrial facilities to assess environmental impacts',
-              frameworks: 'Federal Environmental Law, UAE Policy for Advanced Industries',
-              data_source: 'Environmental Impact Assessment (EIA) reports',
+              question: 'Have you conducted an Environmental Impact Assessment (EIA) for your facility?',
+              rationale: 'Risk Assessment',
+              frameworks: 'Dubai Municipality: Required for industrial projects',
+              data_source: 'EIA Report',
               category: 'environmental',
               sector: sector,
               required: true,
@@ -344,10 +471,10 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
             },
             {
               id: 72,
-              question: 'Do you track monthly consumption of all energy sources?',
-              rationale: 'Energy tracking is fundamental for carbon footprint calculation',
-              frameworks: 'Federal Energy Management Regulation, Federal Climate Law',
-              data_source: 'Monthly utility bills, energy consumption data',
+              question: 'Do you track your facility\'s monthly consumption of all energy sources (electricity, natural gas, diesel)?',
+              rationale: 'Scope 1 & 2 Emissions',
+              frameworks: 'Federal Energy Management Regulation: Mandates energy management, Climate Law: Requires GHG reporting',
+              data_source: 'Utility bills, fuel purchase logs',
               category: 'environmental',
               sector: sector,
               required: true,
@@ -355,10 +482,10 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
             },
             {
               id: 73,
-              question: 'Do you monitor air emissions from your stacks or vents?',
-              rationale: 'Air quality monitoring is required for industrial operations',
-              frameworks: 'Federal Environmental Law, Free Zone EHS Regulations',
-              data_source: 'Air quality monitoring reports, stack emission data',
+              question: 'Have you implemented any projects to improve energy efficiency (e.g., upgrading machinery, installing LED lighting)?',
+              rationale: 'Energy Conservation',
+              frameworks: 'Federal Energy Management Regulation: Targets 33% energy reduction, Policy for Advanced Industries: Promotes energy efficiency',
+              data_source: 'Project reports, equipment specifications',
               category: 'environmental',
               sector: sector,
               required: true,
@@ -366,10 +493,10 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
             },
             {
               id: 74,
-              question: 'Do you track types and quantities of industrial waste generated?',
-              rationale: 'Waste tracking is essential for proper disposal and compliance',
-              frameworks: 'Federal Environmental Law, Industrial Waste Management Regulations',
-              data_source: 'Waste generation logs, disposal certificates',
+              question: 'Do you monitor air emissions from your stacks or vents?',
+              rationale: 'Air Quality',
+              frameworks: 'Federal Energy Management Regulation: Targets 32% air quality improvement, Dubai Municipality: Requires air emission permits',
+              data_source: 'Emissions monitoring reports',
               category: 'environmental',
               sector: sector,
               required: true,
@@ -379,10 +506,10 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
           social: [
             {
               id: 80,
-              question: 'Do you provide training and development programs for employees?',
-              rationale: 'Employee development is a key social responsibility',
-              frameworks: 'GRI 404-2, UAE Vision 2071',
-              data_source: 'Training records, employee development plans',
+              question: 'Do you track the types and quantities of industrial waste your facility generates?',
+              rationale: 'Waste Generation',
+              frameworks: 'Federal Law No. 12 of 2018: Regulates industrial waste',
+              data_source: 'Waste inventory, disposal records',
               category: 'social',
               sector: sector,
               required: true,
@@ -390,21 +517,10 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
             },
             {
               id: 81,
-              question: 'Do you have programs to reduce, reuse, or recycle waste materials?',
-              rationale: 'Circular economy practices reduce environmental impact',
-              frameworks: 'UAE Circular Economy Policy, Federal Climate Law',
-              data_source: 'Waste reduction program documentation, recycling records',
-              category: 'social',
-              sector: sector,
-              required: true,
-              type: 'yes_no'
-            },
-            {
-              id: 82,
-              question: 'Do you treat your industrial wastewater before discharging?',
-              rationale: 'Wastewater treatment protects water resources and public health',
-              frameworks: 'Federal Water Law, Municipal Discharge Standards',
-              data_source: 'Wastewater treatment reports, discharge permits',
+              question: 'Do you have any programs to reduce, reuse, or recycle waste materials within your production process?',
+              rationale: 'Circular Economy',
+              frameworks: 'Policy for Advanced Industries: Promotes circular economy principles',
+              data_source: 'Process flow diagrams, recycling records',
               category: 'social',
               sector: sector,
               required: true,
@@ -415,23 +531,12 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
             {
               id: 90,
               question: 'Do you have a licensed contractor for disposing of hazardous waste?',
-              rationale: 'Proper hazardous waste disposal is legally required',
-              frameworks: 'Federal Environmental Law, Hazardous Waste Regulations',
-              data_source: 'Contractor licenses, hazardous waste disposal certificates',
+              rationale: 'Hazardous Waste Management',
+              frameworks: 'Federal Law No. 12 of 2018: Regulates hazardous waste, JAFZA EHS Regulations: Covers hazardous waste disposal',
+              data_source: 'Contractor license, waste transfer notes',
               category: 'governance',
               sector: sector,
               required: true,
-              type: 'yes_no'
-            },
-            {
-              id: 91,
-              question: 'Have you implemented energy efficiency improvement projects?',
-              rationale: 'Energy efficiency reduces costs and environmental impact',
-              frameworks: 'Federal Energy Management Regulation, UAE Green Agenda',
-              data_source: 'Energy audit reports, efficiency project documentation',
-              category: 'governance',
-              sector: sector,
-              required: false,
               type: 'yes_no'
             }
           ]
@@ -862,33 +967,8 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
   };
 
   const sectorQuestions = getSectorQuestions(businessSector);
-  const baseBusinessQuestions = [
-    {
-      id: 1,
-      question: 'What is your company name?',
-      rationale: 'Company identification for compliance tracking',
-      frameworks: 'GRI 102-1',
-      data_source: 'Business registration documents',
-      category: 'business',
-      sector: businessSector,
-      required: true,
-      type: 'text'
-    },
-    {
-      id: 2,
-      question: 'How many employees does your company have?',
-      rationale: 'Company size determines applicable regulations',
-      frameworks: 'GRI 102-7',
-      data_source: 'HR records, employee roster',
-      category: 'business',
-      sector: businessSector,
-      required: true,
-      type: 'number'
-    }
-  ];
 
   const allQuestions = {
-    'Business Info': baseBusinessQuestions,
     'Environmental': sectorQuestions.environmental,
     'Social': sectorQuestions.social,
     'Governance': sectorQuestions.governance
@@ -897,7 +977,7 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
   const mockScopingData: ESGScopingData = {
     sector: businessSector,
     total_questions: Object.values(allQuestions).flat().length,
-    categories: ['Business Info', 'Environmental', 'Social', 'Governance'],
+    categories: ['Environmental', 'Social', 'Governance'],
     questions_by_category: allQuestions,
     frameworks: getSectorFrameworks(businessSector)
   };
@@ -907,7 +987,7 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
   const isLoading = false;
   const error = null;
 
-  // Enhanced task generation logic with comprehensive framework tagging
+  // Enhanced task generation logic with comprehensive framework tagging and sector-specific branching
   const generateTasksFromAnswers = (answers: Record<string, any>, sector: string) => {
     const generatedTasks: any[] = [];
     let taskIdCounter = 1;
@@ -915,130 +995,85 @@ export default function ESGScopingWizard({ companyId, businessSector, onComplete
     // Get all questions for the sector
     const sectorQuestions = getSectorQuestions(sector);
     const allQuestions = [
-      ...baseBusinessQuestions,
       ...sectorQuestions.environmental,
       ...sectorQuestions.social,
       ...sectorQuestions.governance
     ];
 
+    // Get location data for meter integration using user-specific key
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const companyId = currentUser.company_id;
+    const locationKey = companyId ? `onboarding_locations_${companyId}` : 'locationData';
+    const locationData = JSON.parse(localStorage.getItem(locationKey) || '[]');
+    
+    const allMeters = locationData.flatMap((loc: any) => 
+      loc.meters?.map((meter: any) => ({
+        ...meter,
+        locationName: loc.name,
+        locationId: loc.id
+      })) || []
+    );
+
     allQuestions.forEach((question) => {
       const answer = answers[question.id];
       const taskId = `task_${String(taskIdCounter).padStart(3, '0')}`;
 
-      // Generate tasks based on "No" answers (compliance gaps)
-      if (answer === 'no' && question.required) {
-        const enhancedTaskData = generateEnhancedTask(question, answer, 'compliance');
+      // Sector-specific branching logic based on MD requirements
+      const branchingResults = applySectorSpecificBranching(question, answer, sector, answers);
+      
+      branchingResults.forEach((branchResult) => {
+        const enhancedTaskData = generateEnhancedTask(branchResult.question, branchResult.answer, branchResult.taskType, allMeters);
+        
+        // Add meter information for billing-related tasks
+        const meterInfo = getMeterInfoForTask(branchResult.question, allMeters);
+        
         const task = {
-          title: generateTaskTitle(question),
-          description: generateTaskDescription(question),
+          title: branchResult.customTitle || generateTaskTitle(branchResult.question),
+          description: branchResult.customDescription || generateTaskDescription(branchResult.question),
           status: 'todo' as const,
           category: enhancedTaskData.category.toLowerCase() as 'environmental' | 'social' | 'governance',
-          due_date: calculateDueDate(question.frameworks),
+          due_date: branchResult.customDueDate || calculateDueDate(branchResult.question.frameworks, branchResult.taskType === 'improvement'),
           assigned_user: 'Unassigned',
           evidence_count: 0,
           required_evidence: enhancedTaskData.evidenceRequired.length,
           
           // ESG-specific fields
           frameworks: enhancedTaskData.frameworks,
-          priority: enhancedTaskData.priority,
-          compliance_context: `This task addresses a compliance gap identified in your ESG assessment. ${question.rationale}`,
-          action_required: `Complete the following: ${question.question.replace(/^Do you /, '')}. Required evidence: ${enhancedTaskData.evidenceRequired.join(', ')}`,
+          priority: branchResult.customPriority || enhancedTaskData.priority,
+          compliance_context: branchResult.complianceContext || `This task addresses a compliance gap identified in your ESG assessment. ${branchResult.question.rationale}`,
+          action_required: branchResult.actionRequired || `Complete the following: ${branchResult.question.question.replace(/^Do you /, '')}. Required evidence: ${enhancedTaskData.evidenceRequired.join(', ')}`,
           framework_tags: enhancedTaskData.frameworks,
           evidence_required: enhancedTaskData.evidenceRequired,
           created_from_assessment: true,
           sector: enhancedTaskData.sector,
           estimated_hours: enhancedTaskData.estimatedHours,
           compliance_level: enhancedTaskData.complianceLevel,
-          regulatory_requirement: isRegulatoryRequirement(question.frameworks),
-          task_type: 'compliance' as const,
+          regulatory_requirement: isRegulatoryRequirement(branchResult.question.frameworks),
+          task_type: branchResult.taskType as const,
           created_at: new Date().toISOString(),
-          audit_trail: {
-            created_at: new Date().toISOString(),
-            question_id: question.id,
-            answer: answer,
-            triggered_by: 'compliance_gap'
-          }
-        };
-        generatedTasks.push(task);
-        taskIdCounter++;
-      }
-
-      // Generate monitoring tasks for "Yes" answers that require ongoing tracking
-      if (answer === 'yes' && isOngoingTrackingRequired(question)) {
-        const enhancedTaskData = generateEnhancedTask(question, answer, 'monitoring');
-        const task = {
-          title: generateOngoingTaskTitle(question),
-          description: generateOngoingTaskDescription(question),
-          status: 'todo' as const,
-          category: enhancedTaskData.category.toLowerCase() as 'environmental' | 'social' | 'governance',
-          due_date: calculateOngoingDueDate(),
-          assigned_user: 'Unassigned',
-          evidence_count: 0,
-          required_evidence: enhancedTaskData.evidenceRequired.length,
           
-          // ESG-specific fields
-          frameworks: enhancedTaskData.frameworks,
-          priority: 'Medium',
-          compliance_context: `This task ensures ongoing monitoring of your current ESG practices. ${question.rationale}`,
-          action_required: `Maintain regular monitoring: ${question.question.replace(/^Do you /, '')}. Document evidence: ${enhancedTaskData.evidenceRequired.join(', ')}`,
-          framework_tags: enhancedTaskData.frameworks,
-          evidence_required: enhancedTaskData.evidenceRequired,
-          created_from_assessment: true,
-          sector: enhancedTaskData.sector,
-          estimated_hours: enhancedTaskData.estimatedHours,
-          compliance_level: enhancedTaskData.complianceLevel,
-          regulatory_requirement: isRegulatoryRequirement(question.frameworks),
-          task_type: 'monitoring' as const,
-          created_at: new Date().toISOString(),
-          audit_trail: {
-            created_at: new Date().toISOString(),
-            question_id: question.id,
-            answer: answer,
-            triggered_by: 'ongoing_monitoring'
-          }
-        };
-        generatedTasks.push(task);
-        taskIdCounter++;
-      }
-
-      // Generate improvement tasks for optional requirements answered "No"
-      if (answer === 'no' && !question.required) {
-        const enhancedTaskData = generateEnhancedTask(question, answer, 'compliance');
-        const task = {
-          title: `[Optional] ${generateTaskTitle(question)}`,
-          description: `${generateTaskDescription(question)}\n\nNote: This is an optional improvement that can enhance your ESG performance.`,
-          status: 'todo' as const,
-          category: enhancedTaskData.category.toLowerCase() as 'environmental' | 'social' | 'governance',
-          due_date: calculateDueDate(question.frameworks, true), // Extended deadline for optional tasks
-          assigned_user: 'Unassigned',
-          evidence_count: 0,
-          required_evidence: enhancedTaskData.evidenceRequired.length,
+          // Meter integration for billing tasks
+          meter_info: meterInfo,
+          requires_meter_data: meterInfo.length > 0,
+          recurring_frequency: branchResult.recurringFrequency || null,
+          phase_dependency: branchResult.phaseDependency || null,
           
-          // ESG-specific fields
-          frameworks: enhancedTaskData.frameworks,
-          priority: 'Low',
-          compliance_context: `This task represents an optional improvement opportunity identified in your ESG assessment. ${question.rationale}`,
-          action_required: `Consider implementing: ${question.question.replace(/^Do you /, '')}. This would enhance your ESG performance. Evidence needed: ${enhancedTaskData.evidenceRequired.join(', ')}`,
-          framework_tags: enhancedTaskData.frameworks,
-          evidence_required: enhancedTaskData.evidenceRequired,
-          created_from_assessment: true,
-          sector: enhancedTaskData.sector,
-          estimated_hours: enhancedTaskData.estimatedHours,
-          compliance_level: enhancedTaskData.complianceLevel,
-          regulatory_requirement: false,
-          task_type: 'improvement' as const,
-          created_at: new Date().toISOString(),
           audit_trail: {
             created_at: new Date().toISOString(),
-            question_id: question.id,
-            answer: answer,
-            triggered_by: 'improvement_opportunity'
+            question_id: branchResult.question.id,
+            answer: branchResult.answer,
+            triggered_by: branchResult.triggeredBy || 'assessment_response',
+            branching_logic: branchResult.branchingLogic || 'standard'
           }
         };
         generatedTasks.push(task);
         taskIdCounter++;
-      }
+      });
     });
+
+    // Generate framework-specific mandatory tasks
+    const frameworkTasks = generateFrameworkSpecificTasks(sector, answers, allMeters);
+    generatedTasks.push(...frameworkTasks);
 
     return generatedTasks;
   };
@@ -1306,7 +1341,110 @@ This ongoing monitoring supports: ${question.frameworks}`;
   };
 
   // Evidence requirements mapping based on task categories and frameworks
-  const getEvidenceRequirements = (question: ESGQuestion) => {
+  // Enhanced function to generate meter-specific evidence requirements
+  const generateMeterSpecificEvidence = (questionType: string, allMeters: any[]) => {
+    console.log('DEBUG: generateMeterSpecificEvidence called for:', questionType, 'with meters:', allMeters);
+    const meterSpecificEvidence: string[] = [];
+    
+    if (questionType === 'electricity consumption') {
+      const electricityMeters = allMeters.filter(meter => meter.type === 'electricity');
+      
+      if (electricityMeters.length > 0) {
+        electricityMeters.forEach(meter => {
+          const provider = meter.provider || 'DEWA';
+          const meterNumber = meter.meterNumber || 'meter';
+          const description = meter.description || meter.locationName || 'location';
+          
+          // Specific bills for each meter
+          meterSpecificEvidence.push(`Monthly ${provider} electricity bills for meter ${meterNumber} (${description})`);
+          
+          // Specific meter readings for each meter
+          meterSpecificEvidence.push(`Electricity meter readings for meter ${meterNumber} at ${description}`);
+        });
+        
+        // Common evidence (meter-aware)
+        meterSpecificEvidence.push(
+          'Consolidated energy consumption tracking spreadsheet for all electricity meters',
+          'Building management system (BMS) electricity consumption data'
+        );
+      } else {
+        // Fallback to generic evidence if no specific meters
+        meterSpecificEvidence.push(
+          'Monthly DEWA electricity bills',
+          'Energy consumption tracking spreadsheet',
+          'Meter reading logs',
+          'Building management system (BMS) data'
+        );
+      }
+    } else if (questionType === 'water consumption') {
+      const waterMeters = allMeters.filter(meter => meter.type === 'water');
+      console.log('DEBUG: Water meters found:', waterMeters);
+      
+      if (waterMeters.length > 0) {
+        waterMeters.forEach(meter => {
+          const provider = meter.provider || 'DEWA';
+          const meterNumber = meter.meterNumber || 'meter';
+          const description = meter.description || meter.locationName || 'location';
+          
+          // Specific bills for each meter
+          meterSpecificEvidence.push(`Monthly ${provider} water bills for meter ${meterNumber} (${description})`);
+          
+          // Specific meter readings for each meter
+          meterSpecificEvidence.push(`Water meter readings for meter ${meterNumber} at ${description}`);
+        });
+        
+        // Common evidence (meter-aware)
+        meterSpecificEvidence.push(
+          'Consolidated water consumption tracking spreadsheet for all water meters',
+          'Water conservation reports with meter-specific data',
+          'Leak detection and repair records for monitored water meters'
+        );
+      } else {
+        // Fallback to generic evidence if no specific meters
+        meterSpecificEvidence.push(
+          'Monthly water bills',
+          'Water meter readings',
+          'Water conservation reports',
+          'Leak detection and repair records'
+        );
+      }
+    } else if (questionType === 'gas consumption') {
+      const gasMeters = allMeters.filter(meter => meter.type === 'gas');
+      
+      if (gasMeters.length > 0) {
+        gasMeters.forEach(meter => {
+          const provider = meter.provider || 'Gas Provider';
+          const meterNumber = meter.meterNumber || 'meter';
+          const description = meter.description || meter.locationName || 'location';
+          
+          // Specific bills for each meter
+          meterSpecificEvidence.push(`Monthly ${provider} gas bills for meter ${meterNumber} (${description})`);
+          
+          // Specific meter readings for each meter
+          meterSpecificEvidence.push(`Gas meter readings for meter ${meterNumber} at ${description}`);
+        });
+        
+        // Common evidence (meter-aware)
+        meterSpecificEvidence.push(
+          'Consolidated gas consumption tracking spreadsheet for all gas meters',
+          'Gas safety inspection records for all monitored gas meters',
+          'Gas appliance maintenance logs linked to meter consumption data'
+        );
+      } else {
+        // Fallback to generic evidence if no specific meters
+        meterSpecificEvidence.push(
+          'Monthly gas bills',
+          'Gas consumption tracking spreadsheet',
+          'Gas meter readings',
+          'Gas safety inspection records'
+        );
+      }
+    }
+    
+    return meterSpecificEvidence;
+  };
+
+  const getEvidenceRequirements = (question: ESGQuestion, allMeters: any[] = []) => {
     const evidenceMap: Record<string, string[]> = {
       // Governance & Management Evidence
       'sustainability policy': [
@@ -1331,13 +1469,19 @@ This ongoing monitoring supports: ${question.frameworks}`;
         'Member appointment letters'
       ],
 
-      // Energy & Emissions Evidence
-      'electricity consumption': [
-        'Monthly DEWA electricity bills',
-        'Energy consumption tracking spreadsheet',
-        'Meter reading logs',
-        'Building management system (BMS) data'
-      ],
+      // Energy & Emissions Evidence - will be enhanced with meter-specific data
+      'electricity consumption': generateMeterSpecificEvidence('electricity consumption', allMeters),
+      'electricity': generateMeterSpecificEvidence('electricity consumption', allMeters),
+      'electricity usage': generateMeterSpecificEvidence('electricity consumption', allMeters),
+      'electricity monitoring': generateMeterSpecificEvidence('electricity consumption', allMeters),
+      'water consumption': generateMeterSpecificEvidence('water consumption', allMeters),
+      'water': generateMeterSpecificEvidence('water consumption', allMeters),
+      'water usage': generateMeterSpecificEvidence('water consumption', allMeters),
+      'water monitoring': generateMeterSpecificEvidence('water consumption', allMeters),
+      'gas consumption': generateMeterSpecificEvidence('gas consumption', allMeters),
+      'gas': generateMeterSpecificEvidence('gas consumption', allMeters),
+      'gas usage': generateMeterSpecificEvidence('gas consumption', allMeters),
+      'gas monitoring': generateMeterSpecificEvidence('gas consumption', allMeters),
       'fuel': [
         'Fuel purchase receipts/logs (diesel, petrol, LPG)',
         'Generator maintenance records',
@@ -1488,11 +1632,35 @@ This ongoing monitoring supports: ${question.frameworks}`;
     const questionLower = question.question.toLowerCase();
     let evidenceRequirements: string[] = [question.data_source];
 
+    // Debug logging for water-related questions
+    if (questionLower.includes('water')) {
+      console.log('DEBUG: Water question found:', questionLower);
+      console.log('DEBUG: Available water keywords:', Object.keys(evidenceMap).filter(k => k.includes('water')));
+    }
+
     for (const [keyword, requirements] of Object.entries(evidenceMap)) {
       if (questionLower.includes(keyword)) {
+        if (questionLower.includes('water')) {
+          console.log('DEBUG: Matched water keyword:', keyword);
+          console.log('DEBUG: Water requirements:', requirements);
+        }
         evidenceRequirements = requirements;
         break;
       }
+    }
+    
+    // Fallback catch-all for water-related questions that might not match exact keywords
+    if (questionLower.includes('water')) {
+      console.log('DEBUG: FORCE Using water evidence for question:', questionLower);
+      console.log('DEBUG: Current evidence before override:', evidenceRequirements);
+      evidenceRequirements = generateMeterSpecificEvidence('water consumption', allMeters);
+      console.log('DEBUG: New water evidence after override:', evidenceRequirements);
+    }
+    
+    // Fallback catch-all for gas-related questions that might not match exact keywords  
+    if (questionLower.includes('gas') && evidenceRequirements.length <= 1) {
+      console.log('DEBUG: Using fallback gas evidence for question:', questionLower);
+      evidenceRequirements = generateMeterSpecificEvidence('gas consumption', allMeters);
     }
 
     // Add framework-specific evidence requirements
@@ -1516,8 +1684,8 @@ This ongoing monitoring supports: ${question.frameworks}`;
   };
 
   // Enhanced task generation with detailed evidence requirements
-  const generateEnhancedTask = (question: ESGQuestion, answer: string, taskType: 'compliance' | 'monitoring') => {
-    const evidenceRequirements = getEvidenceRequirements(question);
+  const generateEnhancedTask = (question: ESGQuestion, answer: string, taskType: 'compliance' | 'monitoring', allMeters: any[] = []) => {
+    const evidenceRequirements = getEvidenceRequirements(question, allMeters);
     const frameworks = question.frameworks.split(', ').filter(f => f.trim());
     
     return {
@@ -1579,7 +1747,7 @@ This ongoing monitoring supports: ${question.frameworks}`;
 
   // Complete ESG scoping mutation with comprehensive analytics
   const completeScopingMutation = useMutation({
-    mutationFn: (data: any) => {
+    mutationFn: async (data: any) => {
       console.log('Mutation received data:', data);
       console.log('Data.answers:', data.answers);
       console.log('Data.sector:', data.sector);
@@ -1597,9 +1765,13 @@ This ongoing monitoring supports: ${question.frameworks}`;
       
       // Calculate comprehensive metrics for dashboard integration
       const totalQuestions = Object.values(scopingData.questions_by_category).flat().length;
-      const answeredQuestions = Object.keys(data.answers).length;
-      const yesAnswers = Object.values(data.answers).filter(answer => answer === 'yes').length;
-      const noAnswers = Object.values(data.answers).filter(answer => answer === 'no').length;
+      const allESGQuestions = Object.values(scopingData.questions_by_category).flat();
+      const esgQuestionIds = allESGQuestions.map(q => q.id.toString());
+      const esgAnswers = Object.keys(data.answers).filter(id => esgQuestionIds.includes(id));
+      const esgAnswerValues = esgAnswers.map(id => data.answers[id]);
+      const answeredQuestions = esgAnswers.length;
+      const yesAnswers = esgAnswerValues.filter(answer => answer === 'yes').length;
+      const noAnswers = esgAnswerValues.filter(answer => answer === 'no').length;
       
       const complianceTasks = generatedTasks.filter(t => t.taskType === 'compliance');
       const monitoringTasks = generatedTasks.filter(t => t.taskType === 'monitoring');
@@ -1670,24 +1842,84 @@ This ongoing monitoring supports: ${question.frameworks}`;
         }
       };
 
-      // Mock API call - just return the data after a short delay
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          resolve({ success: true, data: completeData });
-        }, 1000);
+      // Call the real API
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const companyId = currentUser.company_id;
+      
+      console.log('Current user from localStorage:', currentUser);
+      console.log('Company ID:', companyId);
+      
+      if (!companyId) {
+        throw new Error('Company ID not found. Please log in again.');
+      }
+      
+      // Include location data for meter integration
+      const locationData = JSON.parse(localStorage.getItem('locationData') || '[]');
+      
+      console.log('About to call API with:', {
+        companyId,
+        sector: data.sector,
+        answers: data.answers,
+        preferences: data.preferences,
+        location_data: locationData
+      });
+      
+      return esgAPI.completeScoping(companyId, {
+        sector: data.sector,
+        answers: data.answers,
+        preferences: data.preferences,
+        location_data: locationData
+      }).then(response => {
+        console.log('API Response:', response.data);
+        
+        // Merge API response with local analytics
+        const mergedData = {
+          ...completeData,
+          ...response.data,
+          apiResponse: response.data
+        };
+        
+        return { success: true, data: mergedData };
+      }).catch(apiError => {
+        console.error('API call failed:', apiError);
+        console.error('API error details:', {
+          message: apiError.message,
+          response: apiError.response?.data,
+          status: apiError.response?.status,
+          config: apiError.config
+        });
+        throw apiError;
       });
     },
     onSuccess: (data) => {
       console.log('ESG Scoping completed with comprehensive analytics:', data);
       
-      // Save results to localStorage for the results page
-      localStorage.setItem('assessmentResults', JSON.stringify(data.data));
+      // Save results to localStorage for the results page with user-specific key
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const companyId = currentUser.company_id;
+      const assessmentKey = companyId ? `assessmentResults_${companyId}` : 'assessmentResults';
+      localStorage.setItem(assessmentKey, JSON.stringify(data.data));
       
       // Navigate to results page
       navigate('/assessment/results');
       
       // Also call the original onComplete callback
       onComplete(data);
+    },
+    onError: (error) => {
+      console.error('ESG Scoping failed:', error);
+      console.error('Full error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        stack: error.stack
+      });
+      
+      // Show error message to user
+      alert(`Failed to complete ESG scoping: ${error.message}. Please try again.`);
+      
+      // Optionally fall back to local storage
+      console.log('Falling back to local storage...');
     }
   });
 
@@ -1854,7 +2086,11 @@ This ongoing monitoring supports: ${question.frameworks}`;
   const currentCategoryName = categories[currentCategory];
   const currentQuestions = scopingData.questions_by_category[currentCategoryName] || [];
   const isLastCategory = currentCategory === categories.length - 1;
-  const totalAnswered = Object.keys(answers).length;
+  // Calculate progress based only on ESG scoping questions, not pre-filled data
+  const allESGQuestions = Object.values(scopingData.questions_by_category).flat();
+  const esgQuestionIds = allESGQuestions.map(q => q.id.toString());
+  const esgAnswers = Object.keys(answers).filter(id => esgQuestionIds.includes(id));
+  const totalAnswered = esgAnswers.length;
   const progressPercentage = (totalAnswered / scopingData.total_questions) * 100;
 
   const handleAnswerChange = (questionId: number, value: any) => {
@@ -2070,7 +2306,8 @@ This ongoing monitoring supports: ${question.frameworks}`;
       border: '1px solid #4b5563',
       borderRadius: '0.5rem',
       color: 'white',
-      fontSize: '0.875rem'
+      fontSize: '0.875rem',
+      boxSizing: 'border-box'
     },
     button: {
       padding: '0.75rem 1.5rem',
@@ -2092,6 +2329,368 @@ This ongoing monitoring supports: ${question.frameworks}`;
     }
   }
 
+  // Sector-specific branching logic implementation
+  const applySectorSpecificBranching = (question: ESGQuestion, answer: any, sector: string, allAnswers: Record<string, any>) => {
+    const results: any[] = [];
+    
+    // Standard task generation for compliance gaps
+    if (answer === 'no' && question.required) {
+      results.push({
+        question,
+        answer,
+        taskType: 'compliance',
+        triggeredBy: 'compliance_gap',
+        branchingLogic: 'mandatory_requirement'
+      });
+    }
+    
+    // Ongoing monitoring for "Yes" answers
+    if (answer === 'yes' && isOngoingTrackingRequired(question)) {
+      results.push({
+        question,
+        answer,
+        taskType: 'monitoring',
+        triggeredBy: 'ongoing_monitoring',
+        branchingLogic: 'continuous_tracking',
+        recurringFrequency: 'monthly'
+      });
+    }
+    
+    // Optional improvement tasks
+    if (answer === 'no' && !question.required) {
+      results.push({
+        question,
+        answer,
+        taskType: 'improvement',
+        triggeredBy: 'improvement_opportunity',
+        branchingLogic: 'optional_enhancement',
+        customTitle: `[Optional] ${generateTaskTitle(question)}`,
+        customPriority: 'Low'
+      });
+    }
+    
+    // Sector-specific branching logic
+    if (sector.toLowerCase() === 'hospitality') {
+      results.push(...applyHospitalityBranching(question, answer, allAnswers));
+    } else if (sector.toLowerCase() === 'construction') {
+      results.push(...applyConstructionBranching(question, answer, allAnswers));
+    } else if (sector.toLowerCase() === 'manufacturing') {
+      results.push(...applyManufacturingBranching(question, answer, allAnswers));
+    } else if (sector.toLowerCase() === 'health') {
+      results.push(...applyHealthBranching(question, answer, allAnswers));
+    } else if (sector.toLowerCase() === 'education') {
+      results.push(...applyEducationBranching(question, answer, allAnswers));
+    } else if (sector.toLowerCase() === 'logistics') {
+      results.push(...applyLogisticsBranching(question, answer, allAnswers));
+    }
+    
+    return results;
+  };
+  
+  // Hospitality sector-specific branching
+  const applyHospitalityBranching = (question: ESGQuestion, answer: any, allAnswers: Record<string, any>) => {
+    const results: any[] = [];
+    
+    // DST Carbon Calculator mandatory requirements
+    if (question.frameworks.includes('DST Carbon Calculator') && answer === 'no') {
+      results.push({
+        question,
+        answer,
+        taskType: 'compliance',
+        triggeredBy: 'dst_mandatory_requirement',
+        branchingLogic: 'dubai_sustainable_tourism',
+        customPriority: 'High',
+        customDueDate: calculateDueDate('DST Mandatory', false),
+        complianceContext: 'This is a MANDATORY requirement for Dubai Sustainable Tourism compliance. All hotels must report monthly.',
+        actionRequired: 'Set up monthly reporting system for DST Carbon Calculator with 9 mandatory inputs: electricity, water, district cooling, LPG, landfill waste, recycled waste, petrol, diesel, and refrigerants.',
+        recurringFrequency: 'monthly'
+      });
+    }
+    
+    // Green Key certification pathway
+    if (question.frameworks.includes('Green Key') && answer === 'yes') {
+      results.push({
+        question,
+        answer,
+        taskType: 'monitoring',
+        triggeredBy: 'green_key_certification',
+        branchingLogic: 'certification_pathway',
+        customTitle: 'Maintain Green Key Certification Standards',
+        customPriority: 'Medium',
+        actionRequired: 'Document and maintain Green Key certification requirements with photographic evidence and regular audits.',
+        recurringFrequency: 'quarterly'
+      });
+    }
+    
+    return results;
+  };
+  
+  // Construction sector-specific branching
+  const applyConstructionBranching = (question: ESGQuestion, answer: any, allAnswers: Record<string, any>) => {
+    const results: any[] = [];
+    
+    // Phase-based task generation
+    if (question.question.includes('green building certification') && answer === 'yes') {
+      // Generate phase-specific tasks
+      const phases = ['planning', 'construction', 'operational'];
+      
+      phases.forEach(phase => {
+        results.push({
+          question: {
+            ...question,
+            question: `Maintain ${phase} phase green building compliance`,
+            rationale: `${phase} phase requirements for green building certification`
+          },
+          answer,
+          taskType: 'compliance',
+          triggeredBy: 'green_building_certification',
+          branchingLogic: 'phase_based_construction',
+          customTitle: `${phase.charAt(0).toUpperCase() + phase.slice(1)} Phase: Green Building Compliance`,
+          customPriority: phase === 'planning' ? 'High' : 'Medium',
+          phaseDependency: phase,
+          recurringFrequency: phase === 'operational' ? 'quarterly' : null
+        });
+      });
+    }
+    
+    // C&D Waste Management mandatory requirements
+    if (question.question.includes('C&D Waste Management') && answer === 'no') {
+      results.push({
+        question,
+        answer,
+        taskType: 'compliance',
+        triggeredBy: 'federal_law_compliance',
+        branchingLogic: 'waste_management_mandatory',
+        customPriority: 'High',
+        complianceContext: 'Federal Law No. 12 of 2018 mandates C&D waste management for all construction projects.',
+        actionRequired: 'Develop comprehensive C&D Waste Management Plan with licensed contractors and segregation procedures.'
+      });
+    }
+    
+    return results;
+  };
+  
+  // Manufacturing sector-specific branching
+  const applyManufacturingBranching = (question: ESGQuestion, answer: any, allAnswers: Record<string, any>) => {
+    const results: any[] = [];
+    
+    // ISO 14001 pathway vs basic compliance
+    if (question.question.includes('ISO 14001') && answer === 'yes') {
+      // Generate ISO 14001 certification maintenance tasks
+      results.push({
+        question,
+        answer,
+        taskType: 'monitoring',
+        triggeredBy: 'iso_14001_certification',
+        branchingLogic: 'certification_maintenance',
+        customTitle: 'ISO 14001 Certification Maintenance',
+        customPriority: 'Medium',
+        actionRequired: 'Maintain ISO 14001 certification through regular internal audits, management reviews, and continuous improvement.',
+        recurringFrequency: 'quarterly'
+      });
+    } else if (question.question.includes('ISO 14001') && answer === 'no') {
+      // Basic compliance pathway
+      results.push({
+        question,
+        answer,
+        taskType: 'compliance',
+        triggeredBy: 'basic_compliance_pathway',
+        branchingLogic: 'alternative_compliance',
+        customTitle: 'Establish Basic Environmental Management System',
+        customPriority: 'Medium',
+        actionRequired: 'Implement basic environmental management practices aligned with UAE federal requirements.'
+      });
+    }
+    
+    return results;
+  };
+  
+  // Health sector-specific branching
+  const applyHealthBranching = (question: ESGQuestion, answer: any, allAnswers: Record<string, any>) => {
+    const results: any[] = [];
+    
+    // Medical waste segregation mandatory requirements
+    if (question.question.includes('medical waste') && answer === 'no') {
+      results.push({
+        question,
+        answer,
+        taskType: 'compliance',
+        triggeredBy: 'mohap_mandatory_requirement',
+        branchingLogic: 'healthcare_compliance',
+        customPriority: 'High',
+        complianceContext: 'MOHAP Hospital Regulations mandate proper medical waste segregation at point of generation.',
+        actionRequired: 'Implement medical waste segregation system with proper bins, staff training, and licensed disposal contracts.'
+      });
+    }
+    
+    // DoH Sustainability Goals pathway
+    if (question.question.includes('sustainability plan') && answer === 'yes') {
+      results.push({
+        question,
+        answer,
+        taskType: 'monitoring',
+        triggeredBy: 'doh_sustainability_goals',
+        branchingLogic: 'healthcare_sustainability',
+        customTitle: 'DoH Sustainability Goals Reporting',
+        customPriority: 'Medium',
+        actionRequired: 'Report progress toward DoH 20% carbon reduction by 2030 and Net Zero by 2050 goals.',
+        recurringFrequency: 'quarterly'
+      });
+    }
+    
+    return results;
+  };
+  
+  // Education sector-specific branching
+  const applyEducationBranching = (question: ESGQuestion, answer: any, allAnswers: Record<string, any>) => {
+    const results: any[] = [];
+    
+    // ADEK mandatory requirements
+    if (question.frameworks.includes('ADEK') && answer === 'no') {
+      results.push({
+        question,
+        answer,
+        taskType: 'compliance',
+        triggeredBy: 'adek_mandatory_requirement',
+        branchingLogic: 'education_compliance',
+        customPriority: 'High',
+        complianceContext: 'ADEK Sustainability Policy mandates formal sustainability strategies for all Abu Dhabi schools.',
+        actionRequired: 'Develop comprehensive sustainability strategy with curriculum integration and resource reuse programs.'
+      });
+    }
+    
+    // Sustainable Schools Initiative pathway
+    if (question.question.includes('Eco Club') && answer === 'yes') {
+      results.push({
+        question,
+        answer,
+        taskType: 'monitoring',
+        triggeredBy: 'sustainable_schools_initiative',
+        branchingLogic: 'student_engagement',
+        customTitle: 'Sustainable Schools Initiative Activities',
+        customPriority: 'Medium',
+        actionRequired: 'Maintain student-led sustainability activities through Green School Audits and Eco Club projects.',
+        recurringFrequency: 'monthly'
+      });
+    }
+    
+    return results;
+  };
+  
+  // Logistics sector-specific branching
+  const applyLogisticsBranching = (question: ESGQuestion, answer: any, allAnswers: Record<string, any>) => {
+    const results: any[] = [];
+    
+    // Fleet tracking mandatory requirements
+    if (question.question.includes('fuel consumption') && answer === 'no') {
+      results.push({
+        question,
+        answer,
+        taskType: 'compliance',
+        triggeredBy: 'climate_law_requirement',
+        branchingLogic: 'fleet_compliance',
+        customPriority: 'High',
+        complianceContext: 'Federal Climate Law mandates GHG emissions tracking for all transportation fleets.',
+        actionRequired: 'Implement fleet fuel consumption tracking system with monthly reporting for Scope 1 emissions.',
+        recurringFrequency: 'monthly'
+      });
+    }
+    
+    // Green mobility pathway
+    if (question.question.includes('electric or hybrid') && answer === 'yes') {
+      results.push({
+        question,
+        answer,
+        taskType: 'monitoring',
+        triggeredBy: 'green_mobility_initiative',
+        branchingLogic: 'green_transport',
+        customTitle: 'Green Mobility Progress Tracking',
+        customPriority: 'Medium',
+        actionRequired: 'Monitor progress toward UAE Green Agenda 2030 goals and document EV adoption benefits.',
+        recurringFrequency: 'quarterly'
+      });
+    }
+    
+    return results;
+  };
+  
+  // Get meter information for billing-related tasks
+  const getMeterInfoForTask = (question: ESGQuestion, allMeters: any[]) => {
+    const billingKeywords = ['electricity', 'water', 'gas', 'utility', 'consumption', 'bills', 'meter'];
+    const questionLower = question.question.toLowerCase();
+    
+    if (!billingKeywords.some(keyword => questionLower.includes(keyword))) {
+      return [];
+    }
+    
+    const relevantMeters = allMeters.filter(meter => {
+      if (questionLower.includes('electricity') && meter.type === 'electricity') return true;
+      if (questionLower.includes('water') && meter.type === 'water') return true;
+      if (questionLower.includes('gas') && meter.type === 'gas') return true;
+      return false;
+    });
+    
+    return relevantMeters.map(meter => ({
+      meterId: meter.id,
+      meterNumber: meter.meterNumber,
+      meterType: meter.type,
+      description: meter.description,
+      provider: meter.provider,
+      locationName: meter.locationName,
+      locationId: meter.locationId,
+      required_for_task: true
+    }));
+  };
+  
+  // Generate framework-specific mandatory tasks
+  const generateFrameworkSpecificTasks = (sector: string, answers: Record<string, any>, allMeters: any[]) => {
+    const tasks: any[] = [];
+    
+    // DST Carbon Calculator mandatory registration for hospitality
+    if (sector.toLowerCase() === 'hospitality') {
+      tasks.push({
+        title: 'DST Carbon Calculator Registration',
+        description: 'Mandatory registration for Dubai Sustainable Tourism Carbon Calculator with monthly reporting setup.',
+        status: 'todo',
+        category: 'governance',
+        due_date: calculateDueDate('DST Mandatory', false),
+        priority: 'High',
+        frameworks: ['Dubai Sustainable Tourism'],
+        task_type: 'compliance',
+        regulatory_requirement: true,
+        compliance_context: 'All hotel establishments in Dubai must register for DST Carbon Calculator and provide monthly reports.',
+        action_required: 'Register at DST portal and set up monthly reporting system for 9 mandatory inputs.',
+        meter_info: allMeters.filter(m => ['electricity', 'water', 'gas'].includes(m.type)),
+        requires_meter_data: true,
+        recurring_frequency: 'monthly',
+        created_from_assessment: true,
+        estimated_hours: 8
+      });
+    }
+    
+    // Green building certification mandatory for construction
+    if (sector.toLowerCase() === 'construction') {
+      tasks.push({
+        title: 'Green Building Certification Compliance',
+        description: 'Mandatory green building certification for all new construction projects in Dubai/Abu Dhabi.',
+        status: 'todo',
+        category: 'environmental',
+        due_date: calculateDueDate('Al Sa\'fat Mandatory', false),
+        priority: 'High',
+        frameworks: ['Al Sa\'fat Dubai', 'Estidama Pearl'],
+        task_type: 'compliance',
+        regulatory_requirement: true,
+        compliance_context: 'All new buildings must achieve minimum Silver Sa\'fa (Dubai) or 1-Pearl (Abu Dhabi) certification.',
+        action_required: 'Register project with appropriate certification body and ensure compliance with mandatory requirements.',
+        phase_dependency: 'planning',
+        created_from_assessment: true,
+        estimated_hours: 40
+      });
+    }
+    
+    return tasks;
+  };
+
   return (
     <div style={dashboardStyles.container}>
       {/* Header Section */}
@@ -2103,7 +2702,7 @@ This ongoing monitoring supports: ${question.frameworks}`;
         <div style={dashboardStyles.statsGrid}>
           <div style={dashboardStyles.statCard}>
             <div style={{...dashboardStyles.statValue, color: '#10b981'}}>
-              {currentCategory + 1}/4
+              {currentCategory + 1}/{categories.length}
             </div>
             <div style={dashboardStyles.statLabel}>Current Step</div>
           </div>
@@ -2133,7 +2732,7 @@ This ongoing monitoring supports: ${question.frameworks}`;
         {categories.map((category, index) => {
           const isActive = index === currentCategory
           const isCompleted = index < currentCategory
-          const categoryIcons = ['🏢', '🌱', '👥', '⚖️'] // Business, Environmental, Social, Governance
+          const categoryIcons = ['🌱', '👥', '⚖️'] // Environmental, Social, Governance
           
           return (
             <button
@@ -2155,7 +2754,7 @@ This ongoing monitoring supports: ${question.frameworks}`;
       {/* Current Category Header */}
       <div style={{...dashboardStyles.questionCard, textAlign: 'center', marginBottom: '2rem'}}>
         <div style={{fontSize: '3rem', marginBottom: '1rem'}}>
-          {['🏢', '🌱', '👥', '⚖️'][currentCategory] || '📋'}
+          {['🌱', '👥', '⚖️'][currentCategory] || '📋'}
         </div>
         <h2 style={{fontSize: '1.5rem', fontWeight: 'bold', color: 'white', marginBottom: '0.5rem'}}>
           {currentCategoryName}
@@ -2223,61 +2822,8 @@ This ongoing monitoring supports: ${question.frameworks}`;
             <span>Previous</span>
           </button>
           
-          {/* Test button for development */}
-          <button
-            onClick={() => {
-              // Generate some real test tasks
-              const testAnswers = {
-                10: 'no', // No sustainability person
-                11: 'no', // No energy tracking
-                12: 'no', // No waste tracking
-                20: 'yes', // Yes to staff training
-                30: 'no', // No sustainability policy
-              };
-              
-              const testGeneratedTasks = generateTasksFromAnswers(testAnswers, businessSector);
-              const savedTasks = taskStorage.addTasks(testGeneratedTasks);
-              
-              const testResults = {
-                sector: businessSector,
-                completedAt: new Date().toISOString(),
-                overallESGScore: 67,
-                categoryScores: { environmental: 70, social: 65, governance: 66 },
-                totalTasksGenerated: savedTasks.length,
-                highPriorityTasks: savedTasks.filter(t => t.priority === 'High').length,
-                mediumPriorityTasks: savedTasks.filter(t => t.priority === 'Medium').length,
-                lowPriorityTasks: savedTasks.filter(t => t.priority === 'Low').length,
-                complianceTasks: savedTasks.filter(t => t.task_type === 'compliance').length,
-                monitoringTasks: savedTasks.filter(t => t.task_type === 'monitoring').length,
-                improvementTasks: savedTasks.filter(t => t.task_type === 'improvement').length,
-                regulatoryTasks: savedTasks.filter(t => t.regulatory_requirement).length,
-                totalEstimatedHours: savedTasks.reduce((sum, t) => sum + t.estimated_hours, 0),
-                estimatedCompletionWeeks: Math.ceil(savedTasks.reduce((sum, t) => sum + t.estimated_hours, 0) / 40),
-                complianceRate: 58,
-                frameworkCoverage: {
-                  totalFrameworks: 6,
-                  activeFrameworks: ['DST', 'Green Key', 'GRI Standards'],
-                  coveragePercentage: 50
-                },
-                carbonTrackingReadiness: {
-                  readinessScore: 40,
-                  trackingCapabilities: 2,
-                  recommendations: ['Implement energy monitoring systems', 'Set up monthly data collection']
-                },
-                applicableFrameworks: getSectorFrameworks(businessSector),
-                generatedTasks: savedTasks
-              };
-              
-              localStorage.setItem('assessmentResults', JSON.stringify(testResults));
-              window.dispatchEvent(new CustomEvent('tasksUpdated'));
-              navigate('/assessment/results');
-            }}
-            style={{...dashboardStyles.button, backgroundColor: '#f59e0b', color: 'white'}}
-          >
-            <span>🧪</span>
-            <span>Test with Real Tasks</span>
-          </button>
         </div>
+
 
         <div style={{display: 'flex', gap: '0.5rem'}}>
           {categories.map((_, index) => (

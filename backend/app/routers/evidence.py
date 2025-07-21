@@ -15,8 +15,7 @@ from typing import List, Optional
 
 from ..database import get_db
 from ..auth.dependencies import get_current_user
-from ..models.tasks import Evidence, Task
-from ..auth.models import User
+from ..models import Evidence, Task, User
 from ..schemas.evidence import EvidenceResponse, EvidenceCreate
 from ..config import settings
 

@@ -150,10 +150,14 @@ class ESGContentParser:
             
             if len(cells) >= 4:
                 try:
+                    # Clean frameworks field with special framework name cleanup
+                    raw_frameworks = self._clean_cell_text(cells[2])
+                    cleaned_frameworks = self._clean_frameworks_field(raw_frameworks)
+                    
                     question = ESGQuestion(
                         wizard_question=self._clean_cell_text(cells[0]),
                         rationale=self._clean_cell_text(cells[1]),
-                        frameworks=self._clean_cell_text(cells[2]),
+                        frameworks=cleaned_frameworks,
                         data_source=self._clean_cell_text(cells[3]),
                         sector=sector,
                         category=self._categorize_question(cells[0].get_text())
@@ -178,6 +182,104 @@ class ESGContentParser:
         # Remove excessive whitespace
         text = re.sub(r'\s+', ' ', text)
         return text
+    
+    def _clean_framework_name(self, raw_framework: str) -> str:
+        """Clean framework names to show just the main identifier."""
+        
+        # Remove parentheses and their contents like "(Dubai)", "(Abu Dhabi)", "(G)", "(I)"
+        cleaned = re.sub(r'\s*\([^)]*\)', '', raw_framework)
+        
+        # Common framework name mappings and cleanup rules
+        framework_mappings = {
+            # Green Key variations
+            r'Green Key.*': 'Green Key',
+            r'Green Building.*': 'Green Building',
+            
+            # DST variations  
+            r'Dubai Sustainable Tourism.*': 'DST',
+            r'DST.*': 'DST',
+            
+            # Building codes
+            r'Al Sa\'fat.*': 'Al Sa\'fat',
+            r'Estidama.*': 'Estidama',
+            r'Pearl Rating.*': 'Estidama',
+            
+            # Other certifications
+            r'LEED.*': 'LEED',
+            r'BREEAM.*': 'BREEAM',
+            r'ISO.*': 'ISO',
+            
+            # Legal frameworks
+            r'Federal Decree-Law.*': 'UAE Climate Law',
+            r'Federal Law.*': 'UAE Federal Law',
+            r'Climate Law.*': 'UAE Climate Law',
+            
+            # Health and education specific
+            r'ADEK.*': 'ADEK',
+            r'MOH.*': 'Ministry of Health',
+            r'DHA.*': 'Dubai Health Authority',
+            
+            # Remove version numbers and detailed specifications
+            r'(\w+(?:\s+\w+)*)\s+\d+[\.\d]*.*': r'\1',  # Remove version numbers like "2.1", "1.2.3"
+        }
+        
+        # Apply mappings
+        for pattern, replacement in framework_mappings.items():
+            if re.match(pattern, cleaned, re.IGNORECASE):
+                return replacement
+                
+        # Final cleanup: take only the first 1-3 words if it's still too long
+        words = cleaned.split()
+        if len(words) > 3:
+            return ' '.join(words[:2])
+        elif len(cleaned) > 30:  # If still very long, take first two words
+            return ' '.join(words[:2])
+            
+        return cleaned.strip()
+    
+    def _clean_frameworks_field(self, raw_frameworks: str) -> str:
+        """Clean frameworks field that may contain multiple framework references."""
+        if not raw_frameworks:
+            return ""
+            
+        # Split on common delimiters and clean each framework reference
+        frameworks = []
+        
+        # Split on multiple possible delimiters
+        parts = re.split(r'[,;]|\s{2,}', raw_frameworks)  # Split on comma, semicolon, or multiple spaces
+        
+        for part in parts:
+            part = part.strip()
+            if not part:
+                continue
+                
+            # If it contains framework-like patterns, extract and clean them
+            framework_patterns = [
+                r'\*\*(.*?):\*\*',     # **Framework Name:**
+                r'(Green Key[^:,]*)',   # Green Key variants
+                r'(DST[^:,]*)',         # DST variants
+                r'(Al Sa\'fat[^:,]*)',  # Al Sa'fat variants
+                r'(Estidama[^:,]*)',    # Estidama variants
+                r'(LEED[^:,]*)',        # LEED variants
+                r'(ADEK[^:,]*)',        # ADEK variants
+            ]
+            
+            framework_found = False
+            for pattern in framework_patterns:
+                matches = re.findall(pattern, part, re.IGNORECASE)
+                for match in matches:
+                    cleaned = self._clean_framework_name(match.strip())
+                    if cleaned and cleaned not in frameworks:
+                        frameworks.append(cleaned)
+                        framework_found = True
+            
+            # If no specific pattern matched, clean the whole part
+            if not framework_found and part:
+                cleaned = self._clean_framework_name(part)
+                if cleaned and cleaned not in frameworks:
+                    frameworks.append(cleaned)
+        
+        return ', '.join(frameworks)
     
     def _categorize_question(self, question_text: str) -> TaskCategory:
         """Categorize question based on content keywords."""
@@ -321,11 +423,15 @@ class ESGContentParser:
                     continue
                 
                 if question_text and not question_text.startswith('**'):
+                    # Clean frameworks field before adding to question
+                    raw_frameworks = cells[2].get_text().strip()
+                    cleaned_frameworks = self._clean_frameworks_field(raw_frameworks)
+                    
                     question = {
                         "id": len(questions) + 1,
                         "question": question_text,
                         "rationale": cells[1].get_text().strip(),
-                        "frameworks": cells[2].get_text().strip(),
+                        "frameworks": cleaned_frameworks,
                         "data_source": cells[3].get_text().strip(),
                         "category": current_category,
                         "sector": sector,
@@ -387,6 +493,9 @@ class ESGContentParser:
                 # Extract framework name from bullet point
                 framework_match = re.match(r'\* \*\*(.*?):\*\*', line)
                 if framework_match:
-                    frameworks.append(framework_match.group(1))
+                    raw_framework = framework_match.group(1)
+                    # Clean up framework name to show just the main name
+                    cleaned_framework = self._clean_framework_name(raw_framework)
+                    frameworks.append(cleaned_framework)
         
         return frameworks

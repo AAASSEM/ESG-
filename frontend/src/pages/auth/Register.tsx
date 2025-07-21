@@ -9,7 +9,9 @@ const Register = () => {
     confirmPassword: '',
     full_name: '',
     company_name: '',
-    business_sector: ''
+    description: '',
+    business_sector: '',
+    main_location: ''
   })
   const [error, setError] = useState('')
   const { register, loading } = useAuth()
@@ -26,7 +28,7 @@ const Register = () => {
     { value: 'other', label: 'Other' }
   ]
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
@@ -136,7 +138,8 @@ const Register = () => {
       color: 'white',
       fontSize: '1rem',
       outline: 'none',
-      transition: 'border-color 0.2s ease'
+      transition: 'border-color 0.2s ease',
+      boxSizing: 'border-box'
     },
     select: {
       width: '100%',
@@ -151,11 +154,27 @@ const Register = () => {
       backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e")',
       backgroundPosition: 'right 0.5rem center',
       backgroundRepeat: 'no-repeat',
-      backgroundSize: '1.5em 1.5em'
+      backgroundSize: '1.5em 1.5em',
+      boxSizing: 'border-box'
     },
     option: {
       backgroundColor: '#1f2937',
       color: 'white'
+    },
+    textarea: {
+      width: '100%',
+      padding: '0.75rem 1rem',
+      backgroundColor: '#374151',
+      border: '1px solid #4b5563',
+      borderRadius: '0.5rem',
+      color: 'white',
+      fontSize: '1rem',
+      outline: 'none',
+      transition: 'border-color 0.2s ease',
+      boxSizing: 'border-box',
+      resize: 'vertical',
+      minHeight: '80px',
+      fontFamily: 'system-ui, -apple-system, sans-serif'
     },
     helpText: {
       fontSize: '0.75rem',
@@ -268,7 +287,7 @@ const Register = () => {
       fontSize: '0.875rem',
       marginBottom: '0.25rem'
     },
-    helpText: {
+    helpDescription: {
       color: '#9ca3af',
       fontSize: '0.75rem'
     }
@@ -339,6 +358,19 @@ const Register = () => {
                 required
               />
               <p style={styles.helpText}>This will appear on your ESG reports and certificates</p>
+            </div>
+
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Company Description</label>
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                placeholder="Brief description of your company's business activities and services..."
+                style={styles.textarea}
+                maxLength={500}
+              />
+              <p style={styles.helpText}>Optional: Describe your company's main business activities (max 500 characters)</p>
             </div>
 
             <div style={styles.formGroup}>
@@ -443,7 +475,7 @@ const Register = () => {
           <span style={styles.helpIcon}>💡</span>
           <div style={styles.helpContent}>
             <h4 style={styles.helpTitle}>Get started in minutes</h4>
-            <p style={styles.helpText}>
+            <p style={styles.helpDescription}>
               Our onboarding wizard will guide you through setting up your ESG assessment based on your business sector.
             </p>
           </div>

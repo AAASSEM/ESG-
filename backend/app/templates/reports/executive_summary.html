@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ metadata.company_name }} - ESG Executive Summary</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f8f9fa;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: white;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            border-bottom: 3px solid #2c3e50;
+            padding-bottom: 30px;
+            margin-bottom: 40px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .header h2 {
+            color: #7f8c8d;
+            font-size: 1.5rem;
+            font-weight: 300;
+            margin-bottom: 20px;
+        }
+        
+        .header-info {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            padding: 15px;
+            background: #ecf0f1;
+            border-radius: 8px;
+        }
+        
+        .header-info div {
+            text-align: center;
+        }
+        
+        .header-info strong {
+            display: block;
+            color: #2c3e50;
+            font-size: 0.9rem;
+        }
+        
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin: 40px 0;
+        }
+        
+        .metric-card {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            transition: transform 0.2s ease;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        .metric-card h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        .score-display {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .score-circle {
+            display: inline-block;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 10px;
+        }
+        
+        .score-excellent { background: linear-gradient(135deg, #27ae60, #2ecc71); }
+        .score-good { background: linear-gradient(135deg, #f39c12, #e67e22); }
+        .score-fair { background: linear-gradient(135deg, #e67e22, #d35400); }
+        .score-poor { background: linear-gradient(135deg, #e74c3c, #c0392b); }
+        
+        .score-breakdown {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .score-item {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .score-item strong {
+            display: block;
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+        
+        .carbon-summary {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            margin: 20px 0;
+        }
+        
+        .carbon-metric {
+            text-align: center;
+        }
+        
+        .carbon-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .carbon-label {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        
+        .compliance-list {
+            list-style: none;
+        }
+        
+        .compliance-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        
+        .compliance-rate {
+            font-weight: bold;
+            padding: 5px 10px;
+            border-radius: 4px;
+            color: white;
+        }
+        
+        .rate-excellent { background: #27ae60; }
+        .rate-good { background: #f39c12; }
+        .rate-poor { background: #e74c3c; }
+        
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        
+        .badge-success { background: #27ae60; color: white; }
+        .badge-warning { background: #f39c12; color: white; }
+        .badge-danger { background: #e74c3c; color: white; }
+        .badge-secondary { background: #95a5a6; color: white; }
+        
+        .recommendations {
+            margin-top: 40px;
+        }
+        
+        .recommendation-item {
+            background: #f8f9fa;
+            border-left: 4px solid #3498db;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .recommendation-item h4 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .recommendation-meta {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+            font-size: 0.9rem;
+        }
+        
+        .priority-high { border-left-color: #e74c3c; }
+        .priority-medium { border-left-color: #f39c12; }
+        .priority-low { border-left-color: #27ae60; }
+        
+        .footer {
+            margin-top: 50px;
+            padding-top: 30px;
+            border-top: 2px solid #ecf0f1;
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        
+        @media print {
+            body { background: white; }
+            .container { box-shadow: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header Section -->
+        <div class="header">
+            <h1>{{ metadata.company_name }}</h1>
+            <h2>ESG Performance Report</h2>
+            <div class="header-info">
+                <div>
+                    <strong>Reporting Period</strong>
+                    {{ metadata.reporting_period }}
+                </div>
+                <div>
+                    <strong>Sector</strong>
+                    {{ metadata.sector | title }}
+                </div>
+                <div>
+                    <strong>Generated</strong>
+                    {{ metadata.generation_date[:10] }}
+                </div>
+                <div>
+                    <strong>Data Completeness</strong>
+                    {{ metadata.data_completeness | format_percentage }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Metrics Grid -->
+        <div class="metric-grid">
+            <!-- ESG Score Card -->
+            <div class="metric-card">
+                <h3>Overall ESG Performance</h3>
+                <div class="score-display">
+                    <div class="score-circle {% if esg_scores.overall >= 80 %}score-excellent{% elif esg_scores.overall >= 60 %}score-good{% elif esg_scores.overall >= 40 %}score-fair{% else %}score-poor{% endif %}">
+                        {{ esg_scores.overall | round(1) }}
+                    </div>
+                    <div>Overall ESG Score</div>
+                </div>
+                <div class="score-breakdown">
+                    <div class="score-item">
+                        <strong style="color: #27ae60;">{{ esg_scores.environmental | round(1) }}</strong>
+                        <span>Environmental</span>
+                    </div>
+                    <div class="score-item">
+                        <strong style="color: #3498db;">{{ esg_scores.social | round(1) }}</strong>
+                        <span>Social</span>
+                    </div>
+                    <div class="score-item">
+                        <strong style="color: #9b59b6;">{{ esg_scores.governance | round(1) }}</strong>
+                        <span>Governance</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Carbon Footprint Card -->
+            <div class="metric-card">
+                <h3>Carbon Footprint</h3>
+                <div class="carbon-summary">
+                    <div class="carbon-metric">
+                        <div class="carbon-value">{{ carbon_footprint.total_annual | round(1) }}</div>
+                        <div class="carbon-label">tonnes CO₂e/year</div>
+                    </div>
+                </div>
+                <div class="score-breakdown">
+                    <div class="score-item">
+                        <strong style="color: #e74c3c;">{{ carbon_footprint.scope1 | round(1) }}</strong>
+                        <span>Scope 1 (Direct)</span>
+                    </div>
+                    <div class="score-item">
+                        <strong style="color: #f39c12;">{{ carbon_footprint.scope2 | round(1) }}</strong>
+                        <span>Scope 2 (Indirect)</span>
+                    </div>
+                    <div class="score-item">
+                        <strong style="color: #3498db;">{{ carbon_footprint.emissions_per_sqm | round(2) }}</strong>
+                        <span>kg CO₂e/sqm</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Compliance Status Card -->
+            <div class="metric-card">
+                <h3>Framework Compliance</h3>
+                <ul class="compliance-list">
+                    {% for rate in compliance_rates %}
+                    <li class="compliance-item">
+                        <span>{{ rate.framework }}</span>
+                        <span class="compliance-rate {% if rate.rate >= 80 %}rate-excellent{% elif rate.rate >= 60 %}rate-good{% else %}rate-poor{% endif %}">
+                            {{ rate.rate | round(1) }}%
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <!-- Benchmark Comparison Card -->
+            <div class="metric-card">
+                <h3>Sector Benchmark</h3>
+                <div class="score-breakdown">
+                    <div class="score-item">
+                        <strong>{{ benchmark_comparison.electricity_performance | performance_badge | safe }}</strong>
+                        <span>Energy Efficiency</span>
+                    </div>
+                    <div class="score-item">
+                        <strong>{{ benchmark_comparison.water_performance | performance_badge | safe }}</strong>
+                        <span>Water Conservation</span>
+                    </div>
+                    <div class="score-item">
+                        <strong>{{ benchmark_comparison.carbon_performance | performance_badge | safe }}</strong>
+                        <span>Carbon Performance</span>
+                    </div>
+                </div>
+                <div style="text-align: center; margin-top: 15px;">
+                    <strong>Overall Ranking:</strong>
+                    {{ benchmark_comparison.overall_ranking | performance_badge | safe }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Recommendations Section -->
+        {% if recommendations %}
+        <div class="recommendations">
+            <h3 style="color: #2c3e50; margin-bottom: 25px; font-size: 1.5rem;">Priority Recommendations</h3>
+            {% for rec in recommendations[:5] %}
+            <div class="recommendation-item priority-{{ rec.priority }}">
+                <h4>{{ rec.title }}</h4>
+                <p>{{ rec.description }}</p>
+                <div class="recommendation-meta">
+                    <span><strong>Priority:</strong> {{ rec.priority | title }}</span>
+                    <span><strong>Category:</strong> {{ rec.category | title }}</span>
+                    {% if rec.timeframe %}
+                    <span><strong>Timeframe:</strong> {{ rec.timeframe }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>This report was generated using the ESG Scoping & Task Management Platform</p>
+            <p>For more information about your ESG performance, access the full platform dashboard</p>
+            <p><em>Generated on {{ metadata.generation_date[:19] | replace('T', ' ') }} UTC</em></p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,44 +1,26 @@
 """
-Authentication and authorization dependencies.
+Authentication dependencies - Fixed version.
 """
 from datetime import datetime, timedelta
-from typing import Optional, List
-import jwt
-from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status, Request
+from typing import Optional
+from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from uuid import uuid4
 
-from ..database import get_db
 from ..config import settings
-from .models import User
-from ..models import Location, AuditLog
+from ..database import get_db
+from ..models import User, AuditLog
+from ..models.user import UserRole
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # OAuth2 scheme
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/token")
-
-
-class AuthenticationError(HTTPException):
-    """Custom authentication error."""
-    def __init__(self, detail: str = "Could not validate credentials"):
-        super().__init__(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=detail,
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-
-class AuthorizationError(HTTPException):
-    """Custom authorization error."""
-    def __init__(self, detail: str = "Insufficient permissions"):
-        super().__init__(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=detail,
-        )
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -47,36 +29,29 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def get_password_hash(password: str) -> str:
-    """Generate password hash."""
+    """Hash a password."""
     return pwd_context.hash(password)
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create JWT access token."""
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    """Create a JWT access token."""
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
-    
+        expire = datetime.utcnow() + timedelta(minutes=15)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
     return encoded_jwt
 
 
-def create_refresh_token(data: dict) -> str:
-    """Create JWT refresh token."""
+def create_refresh_token(data: dict):
+    """Create a JWT refresh token."""
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days)
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "type": "refresh"})
     encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
     return encoded_jwt
-
-
-async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
-    """Get user by email address."""
-    result = await db.execute(select(User).where(User.email == email))
-    return result.scalar_one_or_none()
 
 
 async def get_user_by_id(db: AsyncSession, user_id: str) -> Optional[User]:
@@ -85,8 +60,14 @@ async def get_user_by_id(db: AsyncSession, user_id: str) -> Optional[User]:
     return result.scalar_one_or_none()
 
 
+async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
+    """Get user by email."""
+    result = await db.execute(select(User).where(User.email == email))
+    return result.scalar_one_or_none()
+
+
 async def authenticate_user(db: AsyncSession, email: str, password: str) -> Optional[User]:
-    """Authenticate user with email and password."""
+    """Authenticate a user by email and password."""
     user = await get_user_by_email(db, email)
     if not user:
         return None
@@ -96,162 +77,124 @@ async def authenticate_user(db: AsyncSession, email: str, password: str) -> Opti
 
 
 async def get_current_user(
-    db: AsyncSession = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
 ) -> User:
-    """Get current authenticated user from JWT token."""
+    """Get the current authenticated user."""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         user_id: str = payload.get("sub")
         if user_id is None:
-            raise AuthenticationError()
-    except jwt.PyJWTError:
-        raise AuthenticationError()
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
     
     user = await get_user_by_id(db, user_id)
     if user is None:
-        raise AuthenticationError()
+        raise credentials_exception
     
     if not user.is_active:
-        raise AuthenticationError("User account is disabled")
+        raise HTTPException(status_code=400, detail="Inactive user")
     
     return user
 
 
-async def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
-    """Get current active user."""
+async def get_current_active_user(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """Ensure the current user is active."""
     if not current_user.is_active:
-        raise AuthenticationError("User account is disabled")
+        raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
 
-async def get_user_site_permissions(db: AsyncSession, user_id: str) -> List[str]:
-    """Get list of site IDs user has access to."""
-    result = await db.execute(
-        select(User).where(User.id == user_id)
-    )
-    user = result.scalar_one_or_none()
-    
-    if not user:
-        return []
-    
-    # Return site IDs user has access to
-    return [site.id for site in user.accessible_sites]
+async def require_admin(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """Require admin role."""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user
 
 
-class RoleChecker:
-    """Dependency class for checking user roles."""
-    
-    def __init__(self, allowed_roles: List[str]):
-        self.allowed_roles = allowed_roles
-    
-    def __call__(self, current_user: User = Depends(get_current_user)) -> User:
-        if current_user.role not in self.allowed_roles:
-            raise AuthorizationError(f"Role '{current_user.role}' not allowed. Required: {self.allowed_roles}")
-        return current_user
-
-
-class SiteAccessChecker:
-    """Dependency class for checking site access permissions."""
-    
-    def __init__(self, require_site_access: bool = True):
-        self.require_site_access = require_site_access
-    
-    async def __call__(
-        self,
-        site_id: Optional[str] = None,
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
-    ) -> User:
-        if not self.require_site_access:
-            return current_user
-        
-        if site_id is None:
-            return current_user  # No specific site required
-        
-        # Check if user has access to this site
-        user_sites = await get_user_site_permissions(db, current_user.id)
-        
-        if current_user.role == "admin":
-            return current_user  # Admins have access to all sites
-        
-        if site_id not in user_sites:
-            raise AuthorizationError("Access denied to this site")
-        
-        return current_user
+async def require_manager(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """Require manager role or higher."""
+    if current_user.role not in [UserRole.ADMIN, UserRole.MANAGER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Manager access required"
+        )
+    return current_user
 
 
 async def create_audit_log(
     db: AsyncSession,
     user_id: str,
     action: str,
-    resource_type: str,
-    resource_id: str,
+    resource_type: Optional[str] = None,
+    resource_id: Optional[str] = None,
     details: Optional[dict] = None,
     ip_address: Optional[str] = None,
     user_agent: Optional[str] = None
 ):
-    """Create audit log entry."""
-    try:
-        audit_log = AuditLog(
-            user_id=user_id,
-            action=action,
-            resource_type=resource_type,
-            resource_id=resource_id,
-            details=details or {},
-            ip_address=ip_address,
-            user_agent=user_agent,
-            timestamp=datetime.utcnow()
-        )
-        
-        db.add(audit_log)
-        await db.commit()
-        
-    except Exception as e:
-        await db.rollback()
-        # Log the error but don't fail the main operation
-        import logging
-        logging.error(f"Failed to create audit log: {e}")
+    """Create an audit log entry."""
+    audit_log = AuditLog(
+        id=str(uuid4()),
+        user_id=user_id,
+        action=action,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        details=details,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        timestamp=datetime.utcnow()
+    )
+    db.add(audit_log)
+    await db.commit()
+    return audit_log
 
 
-# Role-based dependencies
-require_admin = RoleChecker(["admin"])
-require_manager = RoleChecker(["admin", "manager"])
-require_any_role = RoleChecker(["admin", "manager", "contributor"])
+async def get_admin_user(
+    current_user: User = Depends(require_admin)
+) -> User:
+    """Get admin user (alias for require_admin)."""
+    return current_user
 
-# Site access dependencies  
-require_site_access = SiteAccessChecker(require_site_access=True)
-optional_site_access = SiteAccessChecker(require_site_access=False)
-
-# Common role-based dependencies
-get_admin_user = require_admin
-
-# Optional authentication dependency
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi import Header
-
-optional_bearer = HTTPBearer(auto_error=False)
 
 async def get_current_user_optional(
-    db: AsyncSession = Depends(get_db),
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_bearer)
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
 ) -> Optional[User]:
-    """Get current user if token is provided, otherwise return None."""
-    if not credentials:
-        return None
-    
-    token = credentials.credentials
-    
+    """Get the current user, returning None if not authenticated."""
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         user_id: str = payload.get("sub")
         if user_id is None:
             return None
-    except jwt.PyJWTError:
+        
+        user = await get_user_by_id(db, user_id)
+        if user is None or not user.is_active:
+            return None
+        
+        return user
+    except JWTError:
         return None
-    
+
+
+async def get_user_site_permissions(db: AsyncSession, user_id: str):
+    """Get user's site permissions (simplified for single-company model)."""
     user = await get_user_by_id(db, user_id)
-    if user is None or not user.is_active:
-        return None
-    
-    return user
+    if user:
+        return [user.company_id]
+    return []

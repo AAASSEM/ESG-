@@ -3,3 +3,58 @@ venv_linux
 __pycache__
 .ruff_cache
 .pytest_cache
+# Python virtual environments
+venv/
+venv_new/
+venv_quick/
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Compiled Python files
+__pycache__/
+*.pyc
+
+# Database files
+esg_platform.db
+*.db
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+
+# Generated reports/files
+*.pdf
+*.xlsx
+*.json
+
+# Environment variables
+.env
+
+# Node modules (for frontend)
+node_modules/
+
+# Build output directories
+build/
+dist/
+
+# Archival/temporary folders you mentioned
+backend/archived_docs/
+edit/
+main repo/
+repo/
+fix db/
+
+# Specific files you mentioned as deleted or temporary
+backend/migration_summary.md
+backend/simple_main.py
+backend/test_import.py
+build - Copy (2).md
+build - Copy.md
+test_basic.py
+

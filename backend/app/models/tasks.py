@@ -1,96 +1,87 @@
 """
-Task and evidence models for ESG platform.
+Task model - Fixed for SQLite compatibility.
 """
-from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Integer, Date, Enum as SQLEnum
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy import Column, String, Text, DateTime, Boolean, Integer, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-from uuid import uuid4
-from enum import Enum
 from datetime import datetime
-
+import enum
 from ..database import Base
 
 
-class TaskStatus(str, Enum):
-    """Task status options."""
+class TaskStatus(str, enum.Enum):
+    """Task completion status."""
     TODO = "todo"
     IN_PROGRESS = "in_progress"
-    PENDING_REVIEW = "pending_review"
     COMPLETED = "completed"
+    BLOCKED = "blocked"
 
 
-class TaskCategory(str, Enum):
+class TaskCategory(str, enum.Enum):
     """ESG task categories."""
+    ENVIRONMENTAL = "environmental"
+    SOCIAL = "social"
     GOVERNANCE = "governance"
     ENERGY = "energy"
     WATER = "water"
     WASTE = "waste"
     SUPPLY_CHAIN = "supply_chain"
-    SOCIAL = "social"
-    ENVIRONMENTAL = "environmental"
+
+
+class TaskPriority(str, enum.Enum):
+    """Task priority levels."""
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class TaskType(str, enum.Enum):
+    """Task type classification."""
+    COMPLIANCE = "compliance"
+    MONITORING = "monitoring"
+    IMPROVEMENT = "improvement"
 
 
 class Task(Base):
-    """Task model for ESG compliance activities."""
-    
+    """Task model with SQLite-compatible string ID."""
     __tablename__ = "tasks"
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid4()))
-    company_id = Column(String, ForeignKey('companies.id'), nullable=False)
-    location_id = Column(String, ForeignKey('locations.id'), nullable=True)
+    # Use String ID instead of UUID for SQLite compatibility
+    id = Column(String, primary_key=True)
+    company_id = Column(String, ForeignKey("companies.id", ondelete="CASCADE"))
     
-    # Task content from markdown parsing
-    title = Column(String, nullable=False)  # From "Wizard Question (Plain-English)"
-    description = Column(Text, nullable=False)  # From "Rationale / Underlying Metric"
-    compliance_context = Column(Text, nullable=False)  # From "Intersecting Frameworks"
-    action_required = Column(Text, nullable=False)  # From "Data Source / Checklist Item"
+    # Task details
+    title = Column(String, nullable=False)
+    description = Column(Text)
+    compliance_context = Column(Text)
+    action_required = Column(Text)
     
-    # Task management
-    status = Column(SQLEnum(TaskStatus), nullable=False, default=TaskStatus.TODO)
+    # Classification
+    status = Column(SQLEnum(TaskStatus), default=TaskStatus.TODO)
     category = Column(SQLEnum(TaskCategory), nullable=False)
-    assigned_user_id = Column(String, ForeignKey('users.id'), nullable=True)
+    priority = Column(SQLEnum(TaskPriority), default=TaskPriority.MEDIUM)
+    task_type = Column(SQLEnum(TaskType), default=TaskType.COMPLIANCE)
     
-    # Framework associations for "Collect Once, Use Many"
-    framework_tags = Column(ARRAY(String), nullable=False, default=[])
+    # Framework and requirements
+    framework_tags = Column(String)  # JSON string of framework tags
+    regulatory_requirement = Column(String, default="false")  # Store as string for SQLite
+    sector = Column(String)
     
-    # Dates
-    due_date = Column(Date, nullable=True)
-    completed_at = Column(DateTime(timezone=True), nullable=True)
+    # Task metadata
+    due_date = Column(DateTime, nullable=True)
+    estimated_hours = Column(Integer, default=8)
+    required_evidence_count = Column(Integer, default=1)
+    recurring_frequency = Column(String, nullable=True)
+    phase_dependency = Column(String, nullable=True)
     
     # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
     
     # Relationships
     company = relationship("Company", back_populates="tasks")
-    location = relationship("Location", back_populates="tasks")
-    assigned_user = relationship("User", foreign_keys=[assigned_user_id], back_populates="tasks_assigned")
     evidence = relationship("Evidence", back_populates="task", cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<Task(id={self.id}, title={self.title}, status={self.status})>"
 
-
-class Evidence(Base):
-    """Evidence model for task completion documentation."""
-    
-    __tablename__ = "evidence"
-    
-    id = Column(String, primary_key=True, default=lambda: str(uuid4()))
-    task_id = Column(String, ForeignKey('tasks.id'), nullable=False)
-    
-    # File information
-    file_path = Column(String, nullable=False)
-    original_filename = Column(String, nullable=False)
-    file_hash = Column(String, nullable=False)  # SHA-256 for integrity
-    file_size = Column(Integer, nullable=False)
-    mime_type = Column(String, nullable=False)
-    
-    # Upload metadata
-    uploaded_by = Column(String, ForeignKey('users.id'), nullable=False)
-    uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    # Description
-    description = Column(Text, nullable=True)
-    
-    # Relationships
-    task = relationship("Task", back_populates="evidence")
-    uploaded_by_user = relationship("User", back_populates="evidence_uploads")

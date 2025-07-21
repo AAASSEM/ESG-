@@ -42,9 +42,12 @@ export default function ESGAssessmentResults({ results }: ESGAssessmentResultsPr
   const navigate = useNavigate();
   const [realTaskStats, setRealTaskStats] = useState(taskStorage.getTaskStats());
 
-  // Debug logging
+  // Debug logging with user-specific key
   console.log('ESGAssessmentResults received:', results);
-  console.log('localStorage assessmentResults:', localStorage.getItem('assessmentResults'));
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const companyId = currentUser.company_id;
+  const assessmentKey = companyId ? `assessmentResults_${companyId}` : 'assessmentResults';
+  console.log('localStorage assessmentResults:', localStorage.getItem(assessmentKey));
 
   // Update task stats from real storage
   useEffect(() => {

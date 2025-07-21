@@ -1,8 +1,25 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { reportsAPI, authAPI } from '../utils/api'
 
 const Reports = () => {
   const [selectedReport, setSelectedReport] = useState('esg-overview')
   const [isGenerating, setIsGenerating] = useState(false)
+  const [companyId, setCompanyId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  // Get current user's company ID
+  useEffect(() => {
+    const getCurrentUserCompany = async () => {
+      try {
+        const response = await authAPI.getCurrentUser()
+        setCompanyId(response.data.company_id)
+      } catch (err) {
+        console.error('Failed to get current user:', err)
+        setError('Failed to get user information')
+      }
+    }
+    getCurrentUserCompany()
+  }, [])
 
   const reportTypes = [
     { id: 'esg-overview', name: 'ESG Overview Report', description: 'Complete ESG performance summary' },
@@ -13,13 +30,45 @@ const Reports = () => {
   ]
 
   const handleGenerateReport = async () => {
+    if (!companyId) {
+      alert('Error: Company information not available. Please try refreshing the page.')
+      return
+    }
+
     setIsGenerating(true)
-    // Simulate report generation
-    setTimeout(() => {
+    setError(null)
+    
+    try {
+      console.log('🚀 Generating ESG report for company:', companyId)
+      
+      // Generate the report
+      const response = await reportsAPI.generateESGReport(companyId, true)
+      console.log('✅ Report generated successfully')
+      
+      // Create download link
+      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-')
+      link.download = `ESG_Report_${timestamp}.pdf`
+      
+      // Trigger download
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      
+      console.log('📥 Download triggered successfully')
+      
+    } catch (err: any) {
+      console.error('❌ Failed to generate report:', err)
+      setError(err.response?.data?.detail || 'Failed to generate report. Please try again.')
+    } finally {
       setIsGenerating(false)
-      // In real app, would download the report
-      alert('Report generated successfully! Download would start automatically.')
-    }, 3000)
+    }
   }
 
   const styles = {
@@ -335,6 +384,20 @@ const Reports = () => {
                   )}
                 </button>
               </div>
+
+              {/* Error Display */}
+              {error && (
+                <div style={{
+                  marginTop: '1rem',
+                  padding: '1rem',
+                  backgroundColor: '#fee2e2',
+                  border: '1px solid #fecaca',
+                  borderRadius: '0.5rem',
+                  color: '#dc2626'
+                }}>
+                  ❌ {error}
+                </div>
+              )}
             </>
           )}
         </div>
